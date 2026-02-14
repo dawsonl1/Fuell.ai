@@ -1,0 +1,205 @@
+@import "tailwindcss";
+
+/*
+ * CareerVine — Material Design 3 color system
+ *
+ * Palette: white background, green primary, black on-surface
+ * Generated following M3 tonal palette conventions.
+ */
+
+:root {
+  /* M3 Surface / Background */
+  --md-surface: #ffffff;
+  --md-surface-dim: #f7f7f7;
+  --md-surface-bright: #ffffff;
+  --md-surface-container-lowest: #ffffff;
+  --md-surface-container-low: #ffffff;
+  --md-surface-container: #fafafa;
+  --md-surface-container-high: #ffffff;
+  --md-surface-container-highest: #f5f5f5;
+  --md-on-surface: #1a1c1a;
+  --md-on-surface-variant: #5f6368;
+  --md-outline: #bdc1c6;
+  --md-outline-variant: #e1e3e6;
+
+  /* M3 Primary — Green */
+  --md-primary: #2d6a30;
+  --md-primary-container: #b0f1a9;
+  --md-on-primary: #ffffff;
+  --md-on-primary-container: #002204;
+  --md-inverse-primary: #94d58f;
+
+  /* M3 Secondary — muted green-gray */
+  --md-secondary: #516350;
+  --md-secondary-container: #d4e8d0;
+  --md-on-secondary: #ffffff;
+  --md-on-secondary-container: #0f1f10;
+
+  /* M3 Tertiary — earthy complement */
+  --md-tertiary: #39656b;
+  --md-tertiary-container: #bcebf1;
+  --md-on-tertiary: #ffffff;
+  --md-on-tertiary-container: #001f23;
+
+  /* M3 Error */
+  --md-error: #ba1a1a;
+  --md-error-container: #ffdad6;
+  --md-on-error: #ffffff;
+  --md-on-error-container: #410002;
+
+  /* Elevation overlay tints (M3 uses tonal elevation) */
+  --md-elevation-1:
+    0 1px 3px 1px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --md-elevation-2:
+    0 2px 6px 2px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --md-elevation-3:
+    0 4px 8px 3px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.06);
+
+  /* Shape — M3 uses rounded corners */
+  --md-shape-xs: 4px;
+  --md-shape-sm: 8px;
+  --md-shape-md: 12px;
+  --md-shape-lg: 16px;
+  --md-shape-xl: 28px;
+  --md-shape-full: 9999px;
+
+  /* Legacy aliases so Tailwind theme tokens keep working */
+  --background: var(--md-surface);
+  --foreground: var(--md-on-surface);
+  --primary: var(--md-primary);
+  --primary-foreground: var(--md-on-primary);
+  --secondary: var(--md-secondary-container);
+  --secondary-foreground: var(--md-on-secondary-container);
+  --muted: var(--md-surface-container);
+  --muted-foreground: var(--md-on-surface-variant);
+  --accent: var(--md-surface-container-high);
+  --accent-foreground: var(--md-on-surface);
+  --destructive: var(--md-error);
+  --destructive-foreground: var(--md-on-error);
+  --border: var(--md-outline-variant);
+  --input: var(--md-surface-container-low);
+  --ring: var(--md-primary);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-surface-container: var(--md-surface-container);
+  --color-surface-container-low: var(--md-surface-container-low);
+  --color-surface-container-high: var(--md-surface-container-high);
+  --color-surface-container-highest: var(--md-surface-container-highest);
+  --color-primary-container: var(--md-primary-container);
+  --color-on-primary-container: var(--md-on-primary-container);
+  --color-secondary-container: var(--md-secondary-container);
+  --color-on-secondary-container: var(--md-on-secondary-container);
+  --color-tertiary: var(--md-tertiary);
+  --color-tertiary-container: var(--md-tertiary-container);
+  --color-on-tertiary-container: var(--md-on-tertiary-container);
+  --color-error-container: var(--md-error-container);
+  --color-on-error-container: var(--md-on-error-container);
+  --color-outline: var(--md-outline);
+  --color-outline-variant: var(--md-outline-variant);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  border-color: var(--md-outline-variant);
+}
+
+body {
+  background: var(--md-surface);
+  color: var(--md-on-surface);
+  font-family:
+    var(--font-geist-sans),
+    "Roboto",
+    system-ui,
+    -apple-system,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* M3-style scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--md-outline-variant);
+  border-radius: var(--md-shape-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--md-outline);
+}
+
+/* M3 focus-visible ring */
+:focus-visible {
+  outline: 2px solid var(--md-primary);
+  outline-offset: 2px;
+  border-radius: var(--md-shape-xs);
+}
+
+/* Selection */
+::selection {
+  background: var(--md-primary-container);
+  color: var(--md-on-primary-container);
+}
+
+/* M3 ripple-like state layer helper */
+.state-layer {
+  position: relative;
+  overflow: hidden;
+}
+.state-layer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity 150ms ease;
+  pointer-events: none;
+  border-radius: inherit;
+}
+.state-layer:hover::after {
+  opacity: 0.08;
+}
+.state-layer:active::after {
+  opacity: 0.12;
+}
+
+/* Clean up native date/time inputs */
+input[type="date"],
+input[type="time"] {
+  color-scheme: light;
+  appearance: none;
+  -webkit-appearance: none;
+}
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  opacity: 0.5;
+  cursor: pointer;
+  filter: none;
+}
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="time"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 0.8;
+}

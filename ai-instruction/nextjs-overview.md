@@ -1,12 +1,12 @@
 # Next.js Project Overview
 
-This document summarizes how the `fuell-app` project (and most modern Next.js apps) are structured and how they run, so you can quickly reason about changes from the AI side.
+This document summarizes how the `careervine` project (and most modern Next.js apps) are structured and how they run, so you can quickly reason about changes from the AI side.
 
 ## 1. Directory structure
 
 ```text
 Networking-Helper/
-├── fuell-app/               # Next.js application root
+├── careervine/              # Next.js application root
 │   ├── src/app/             # App Router entry points (route segments)
 │   │   ├── layout.tsx       # Root layout (applies HTML/head/body wrappers)
 │   │   └── page.tsx         # Default route rendered at '/'
@@ -75,7 +75,7 @@ Next.js exposes env vars with these rules:
 Values live in `.env.local` (for development) and deployment platform env settings for Production. See `ai-instruction/supabase-workflow.md` (if recreated) for Supabase-specific keys.
 
 ## 6. Build & runtime scripts
-`package.json` scripts inside `fuell-app/`:
+`package.json` scripts inside `careervine/`:
 - `npm run dev` – starts Next.js in development (hot reload, stack traces)
 - `npm run build` – creates production build (`.next/` output)
 - `npm run start` – serves the production build
