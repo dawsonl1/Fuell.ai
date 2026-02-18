@@ -9,15 +9,14 @@ let config = {};
 // Initialize configuration
 async function initializeConfig() {
   try {
-    const response = await fetch(chrome.runtime.getURL('env/development.json'));
+    const response = await fetch(chrome.runtime.getURL('env/production.json'));
     config = await response.json();
   } catch (error) {
     console.error('Failed to load config:', error);
-    // Fallback to development defaults
     config = {
-      apiBaseUrl: 'http://localhost:3000/api',
-      supabaseUrl: 'http://localhost:54321',
-      environment: 'development'
+      apiBaseUrl: 'https://dawsonsprojects.com/api',
+      supabaseUrl: 'https://iycrlwqjetkwaauzxrhd.supabase.co',
+      environment: 'production'
     };
   }
 }
