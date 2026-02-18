@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server-client";
+import { createSupabaseServiceClient } from "@/lib/supabase/service-client";
 import { exchangeCodeForTokens } from "@/lib/gmail";
+import { google } from "googleapis";
 
 /**
  * GET /api/gmail/callback
  * Handles the OAuth redirect from Google. Exchanges the authorization code
  * for tokens, stores them, and redirects back to settings.
+ * Also detects if calendar scopes were granted.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -38,6 +41,25 @@ export async function GET(request: NextRequest) {
     }
 
     await exchangeCodeForTokens(code, user.id);
+
+    // Check if calendar scopes were granted
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_REDIRECT_URI
+    );
+    const { tokens } = await oauth2Client.getToken(code);
+    const grantedScopes = tokens.scope?.split(" ") || [];
+    const calendarGranted = grantedScopes.some(s => s.includes("calendar"));
+
+    // Update calendar_scopes_granted flag
+    if (calendarGranted) {
+      const serviceClient = createSupabaseServiceClient();
+      await serviceClient
+        .from("gmail_connections")
+        .update({ calendar_scopes_granted: true })
+        .eq("user_id", user.id);
+    }
 
     const baseUrl = new URL(request.url).origin;
     return NextResponse.redirect(`${baseUrl}/settings?gmail=connected`);

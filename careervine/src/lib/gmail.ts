@@ -9,9 +9,14 @@
 import { google } from "googleapis";
 import { createSupabaseServiceClient } from "@/lib/supabase/service-client";
 
-const SCOPES = [
+const GMAIL_SCOPES = [
   "https://www.googleapis.com/auth/gmail.modify",
   "https://www.googleapis.com/auth/gmail.send",
+];
+
+const CALENDAR_SCOPES = [
+  "https://www.googleapis.com/auth/calendar",
+  "https://www.googleapis.com/auth/calendar.events",
 ];
 
 function getOAuth2Client() {
@@ -23,12 +28,13 @@ function getOAuth2Client() {
 }
 
 /** Generate the Google consent URL that the user will be redirected to. */
-export function getAuthUrl(state: string): string {
+export function getAuthUrl(state: string, includeCalendar: boolean = false): string {
   const oauth2Client = getOAuth2Client();
+  const scopes = includeCalendar ? [...GMAIL_SCOPES, ...CALENDAR_SCOPES] : GMAIL_SCOPES;
   return oauth2Client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
-    scope: SCOPES,
+    scope: scopes,
     state,
   });
 }
