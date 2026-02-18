@@ -88,8 +88,31 @@ export default function SettingsPage() {
       loadProfile();
       loadGmailStatus();
       loadTemplates();
+      loadCalendarStatus();
     }
   }, [user]);
+
+  const loadCalendarStatus = async () => {
+    if (!user) return;
+    try {
+      const res = await fetch("/api/gmail/connection");
+      const data = await res.json();
+      if (data.connection) {
+        setCalendarConnected(data.connection.calendar_scopes_granted || false);
+        setCalendarLastSynced(data.connection.calendar_last_synced_at);
+        if (data.connection.availability_standard) {
+          setAvailabilityStandard(data.connection.availability_standard);
+        }
+        if (data.connection.availability_priority) {
+          setAvailabilityPriority(data.connection.availability_priority);
+        }
+      }
+    } catch (err) {
+      console.error("Error loading calendar status:", err);
+    } finally {
+      setCalendarLoading(false);
+    }
+  };
 
   const loadProfile = async () => {
     if (!user) return;
@@ -155,6 +178,43 @@ export default function SettingsPage() {
       setTemplateError("Failed to save template.");
     } finally {
       setTemplateSaving(false);
+    }
+  };
+
+  const handleSaveAvailability = async () => {
+    try {
+      setSavingAvailability(true);
+      const profile = availabilityTab === "standard" ? availabilityStandard : availabilityPriority;
+      const res = await fetch("/api/calendar/availability-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          profile: availabilityTab,
+          data: profile,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to save availability");
+      setError("");
+    } catch (err) {
+      console.error("Error saving availability:", err);
+      setError(err instanceof Error ? err.message : "Failed to save availability");
+    } finally {
+      setSavingAvailability(false);
+    }
+  };
+
+  const handleDisconnectCalendar = async () => {
+    try {
+      setDisconnectingCalendar(true);
+      const res = await fetch("/api/calendar/disconnect", { method: "POST" });
+      if (!res.ok) throw new Error("Failed to disconnect calendar");
+      setCalendarConnected(false);
+      setCalendarLastSynced(null);
+    } catch (err) {
+      console.error("Error disconnecting calendar:", err);
+      setError(err instanceof Error ? err.message : "Failed to disconnect calendar");
+    } finally {
+      setDisconnectingCalendar(false);
     }
   };
 
@@ -702,13 +762,13 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="flex items-center gap-3 pt-2">
-                  <Button type="button" loading={savingAvailability}>
+                  <Button type="button" loading={savingAvailability} onClick={handleSaveAvailability}>
                     Save availability
                   </Button>
                   <Button
                     type="button"
                     variant="text"
-                    onClick={() => setDisconnectingCalendar(true)}
+                    onClick={handleDisconnectCalendar}
                     loading={disconnectingCalendar}
                   >
                     <Unplug className="h-4 w-4 mr-2" />
