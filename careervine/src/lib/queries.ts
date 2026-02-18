@@ -37,6 +37,7 @@ export async function getContacts(userId: string) {
     .from("contacts")
     .select(`
       *,
+      locations(*),
       contact_emails(*),
       contact_phones(*),
       contact_companies(
@@ -54,6 +55,37 @@ export async function getContacts(userId: string) {
     `)
     .eq("user_id", userId)  // RLS ensures users can only see their own contacts
     .order("name");         // Sort alphabetically by name
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Fetch a single contact by ID with all related data (same shape as getContacts).
+ */
+export async function getContactById(contactId: number) {
+  const { data, error } = await supabase
+    .from("contacts")
+    .select(`
+      *,
+      locations(*),
+      contact_emails(*),
+      contact_phones(*),
+      contact_companies(
+        *,
+        companies(*)
+      ),
+      contact_schools(
+        *,
+        schools(*)
+      ),
+      contact_tags(
+        *,
+        tags(*)
+      )
+    `)
+    .eq("id", contactId)
+    .single();
 
   if (error) throw error;
   return data;
@@ -445,6 +477,49 @@ export async function findOrCreateSchool(name: string) {
   const { data, error } = await supabase
     .from("schools")
     .insert({ name })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Find or create a normalized location entry
+ * Checks for existing location by city+state+country to avoid duplicates.
+ *
+ * @param location - Object with city, state, country
+ * @returns Promise<Location> - The existing or newly created location
+ * @throws Error if creation fails
+ */
+export async function findOrCreateLocation(location: { city: string | null; state: string | null; country: string }) {
+  // Try to find existing with exact match
+  let query = supabase.from("locations").select("*");
+  
+  if (location.city) {
+    query = query.eq("city", location.city);
+  } else {
+    query = query.is("city", null);
+  }
+  
+  if (location.state) {
+    query = query.eq("state", location.state);
+  } else {
+    query = query.is("state", null);
+  }
+  
+  query = query.eq("country", location.country);
+  
+  const { data: existing } = await query.maybeSingle();
+  if (existing) return existing;
+
+  // Create new
+  const { data, error } = await supabase
+    .from("locations")
+    .insert({
+      city: location.city,
+      state: location.state,
+      country: location.country,
+    })
     .select()
     .single();
   if (error) throw error;
@@ -1065,6 +1140,53 @@ export async function getAttachmentUrl(objectPath: string, expiresIn = 3600) {
     .createSignedUrl(objectPath, expiresIn);
   if (error) throw error;
   return data.signedUrl;
+}
+
+// ═══════════════════════════════════════════════════════════
+// Gmail
+// ═══════════════════════════════════════════════════════════
+
+export async function getGmailConnection(userId: string) {
+  const { data, error } = await supabase
+    .from("gmail_connections")
+    .select("id, gmail_address, last_gmail_sync_at, created_at")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function getEmailsForContact(userId: string, contactId: number) {
+  const { data, error } = await supabase
+    .from("email_messages")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("matched_contact_id", contactId)
+    .order("date", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function getFollowUpsForThread(userId: string, threadId: string) {
+  const { data, error } = await supabase
+    .from("email_follow_ups")
+    .select("*, email_follow_up_messages(*)")
+    .eq("user_id", userId)
+    .eq("thread_id", threadId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function getActiveFollowUps(userId: string) {
+  const { data, error } = await supabase
+    .from("email_follow_ups")
+    .select("*, email_follow_up_messages(*)")
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
 }
 
 /**

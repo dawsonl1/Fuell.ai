@@ -51,9 +51,22 @@ export type Database = {
           preferred_contact_value: string | null;   // Contact details
           contact_status: string | null;            // 'student' or 'professional'
           expected_graduation: string | null;       // e.g. "May 2027"
+          location_id: number | null;    // Foreign key to locations table
         };
         Insert: Omit<Database["public"]["Tables"]["contacts"]["Row"], "id">;
         Update: Partial<Database["public"]["Tables"]["contacts"]["Insert"]>;
+      };
+      
+      // Locations table - normalized geographic locations
+      locations: {
+        Row: {
+          id: number;                    // Auto-incrementing primary key
+          city: string | null;           // City name (e.g., "San Francisco")
+          state: string | null;          // State/province (e.g., "California" or "CA")
+          country: string;               // Country name (e.g., "United States")
+        };
+        Insert: Omit<Database["public"]["Tables"]["locations"]["Row"], "id">;
+        Update: Partial<Database["public"]["Tables"]["locations"]["Insert"]>;
       };
       
       // Contact emails - supports multiple emails per contact
@@ -98,8 +111,11 @@ export type Database = {
           contact_id: number;            // Foreign key to contacts
           company_id: number;            // Foreign key to companies
           title: string | null;          // Job title at this company
-          start_date: string | null;     // Employment start date
-          end_date: string | null;       // Employment end date
+          location: string | null;       // Job location (e.g., "San Francisco, CA")
+          start_date: string | null;     // Employment start date (legacy)
+          end_date: string | null;       // Employment end date (legacy)
+          start_month: string | null;    // Job start month "Mon YYYY" (e.g., "Jan 2023")
+          end_month: string | null;      // Job end month "Mon YYYY" or "Present"
           is_current: boolean;            // Whether this is current employment
         };
         Insert: Omit<Database["public"]["Tables"]["contact_companies"]["Row"], "id">;
@@ -237,7 +253,110 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["interaction_attachments"]["Insert"]>;
       };
       
-      
+      // Gmail connections — per-user OAuth tokens for Gmail API access
+      gmail_connections: {
+        Row: {
+          id: number;
+          user_id: string;
+          gmail_address: string;
+          access_token: string;
+          refresh_token: string;
+          token_expires_at: string;
+          last_gmail_sync_at: string | null;
+          created_at: string | null;
+          updated_at: string | null;
+        };
+        Insert: Omit<Database["public"]["Tables"]["gmail_connections"]["Row"], "id" | "created_at" | "updated_at">;
+        Update: Partial<Database["public"]["Tables"]["gmail_connections"]["Insert"]>;
+      };
+
+      // Email messages — lightweight metadata cache for Gmail messages
+      email_messages: {
+        Row: {
+          id: number;
+          user_id: string;
+          gmail_message_id: string;
+          thread_id: string | null;
+          subject: string | null;
+          snippet: string | null;
+          from_address: string | null;
+          to_addresses: string[] | null;
+          date: string | null;
+          label_ids: string[] | null;
+          is_read: boolean;
+          direction: string | null;
+          matched_contact_id: number | null;
+          created_at: string | null;
+        };
+        Insert: Omit<Database["public"]["Tables"]["email_messages"]["Row"], "id" | "created_at">;
+        Update: Partial<Database["public"]["Tables"]["email_messages"]["Insert"]>;
+      };
+
+      // Scheduled emails — send-later queue
+      scheduled_emails: {
+        Row: {
+          id: number;
+          user_id: string;
+          recipient_email: string;
+          cc: string | null;
+          bcc: string | null;
+          subject: string;
+          body_html: string;
+          thread_id: string | null;
+          in_reply_to: string | null;
+          references_header: string | null;
+          scheduled_send_at: string;
+          status: string;
+          sent_at: string | null;
+          gmail_message_id: string | null;
+          sent_thread_id: string | null;
+          contact_name: string | null;
+          matched_contact_id: number | null;
+          created_at: string | null;
+          updated_at: string | null;
+        };
+        Insert: Omit<Database["public"]["Tables"]["scheduled_emails"]["Row"], "id" | "created_at" | "updated_at">;
+        Update: Partial<Database["public"]["Tables"]["scheduled_emails"]["Insert"]>;
+      };
+
+      // Email follow-up sequences — scheduled follow-ups for sent emails
+      email_follow_ups: {
+        Row: {
+          id: number;
+          user_id: string;
+          original_gmail_message_id: string;
+          thread_id: string;
+          recipient_email: string;
+          contact_name: string | null;
+          original_subject: string | null;
+          original_sent_at: string;
+          status: string;
+          scheduled_email_id: number | null;
+          created_at: string | null;
+          updated_at: string | null;
+        };
+        Insert: Omit<Database["public"]["Tables"]["email_follow_ups"]["Row"], "id" | "created_at" | "updated_at">;
+        Update: Partial<Database["public"]["Tables"]["email_follow_ups"]["Insert"]>;
+      };
+
+      // Individual messages in a follow-up sequence
+      email_follow_up_messages: {
+        Row: {
+          id: number;
+          follow_up_id: number;
+          sequence_number: number;
+          send_after_days: number;
+          subject: string;
+          body_html: string;
+          status: string;
+          scheduled_send_at: string;
+          sent_at: string | null;
+          created_at: string | null;
+        };
+        Insert: Omit<Database["public"]["Tables"]["email_follow_up_messages"]["Row"], "id" | "created_at">;
+        Update: Partial<Database["public"]["Tables"]["email_follow_up_messages"]["Insert"]>;
+      };
+
       // Junction table: many-to-many between action items and contacts
       action_item_contacts: {
         Row: {

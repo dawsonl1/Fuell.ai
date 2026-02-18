@@ -1,0 +1,39 @@
+/**
+ * CareerVine Content Script Styles
+ * Only FAB styles - panel styles are in Shadow DOM
+ */
+
+/* Floating Action Button (outside Shadow DOM) */
+.careervine-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: #2d6a30;
+  color: white;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999999;
+  transition: all 0.2s ease;
+}
+
+.careervine-fab:hover {
+  background: #1e4d22;
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+.careervine-fab:active {
+  transform: scale(0.98);
+}
+
+.careervine-fab svg {
+  width: 24px;
+  height: 24px;
+}

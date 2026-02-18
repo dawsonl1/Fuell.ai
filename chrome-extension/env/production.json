@@ -1,0 +1,5 @@
+{
+  "apiBaseUrl": "https://careervine.app/api",
+  "supabaseUrl": "https://your-project.supabase.co",
+  "environment": "production"
+}

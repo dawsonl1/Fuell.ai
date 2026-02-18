@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CareerVine</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="popup-container">
+      <!-- Top App Bar -->
+      <header class="top-app-bar">
+        <div class="top-app-bar-left">
+          <div class="brand">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              class="brand-icon"
+            >
+              <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z" />
+            </svg>
+            <span class="brand-text">CareerVine</span>
+          </div>
+        </div>
+        <div class="top-app-bar-right">
+          <div class="user-avatar" id="userAvatar" style="display: none">
+            <div class="avatar-circle">
+              <span id="avatarInitial">?</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Main Content -->
+      <main class="popup-content">
+        <!-- Authentication Section -->
+        <section id="authSection" class="auth-section">
+          <div class="auth-card">
+            <div class="auth-header">
+              <h2 class="auth-title">Welcome back</h2>
+              <p class="auth-subtitle">Sign in to CareerVine to continue</p>
+            </div>
+            <form id="authForm" class="auth-form">
+              <div class="text-field">
+                <label for="email" class="text-field-label">Email</label>
+                <input 
+                  type="email" 
+                  id="email" 
+                  name="email" 
+                  class="text-field-input"
+                  placeholder="Enter your email"
+                  required 
+                />
+              </div>
+              <div class="text-field">
+                <label for="password" class="text-field-label">Password</label>
+                <input 
+                  type="password" 
+                  id="password" 
+                  name="password" 
+                  class="text-field-input"
+                  placeholder="Enter your password"
+                  required 
+                />
+              </div>
+              <button type="submit" class="btn btn-filled" id="signInBtn">
+                <span>Sign In</span>
+              </button>
+            </form>
+            <div id="authStatus" class="status-message" style="display: none;">
+              <span class="status-text"></span>
+            </div>
+            <div class="auth-footer">
+              <p class="auth-footer-text">New to CareerVine?</p>
+              <a href="#" id="signupLink" class="auth-footer-link">Create an account</a>
+            </div>
+          </div>
+        </section>
+
+        <!-- Main App Section -->
+        <section id="mainSection" class="main-section" style="display: none">
+          <!-- Navigation Tabs -->
+          <div class="nav-tabs">
+            <button class="nav-tab active" data-tab="import">
+              <span>Import</span>
+            </button>
+            <button class="nav-tab" data-tab="recent">
+              <span>Recent</span>
+            </button>
+          </div>
+
+          <!-- Import Tab -->
+          <div id="importTab" class="tab-content active">
+            <div class="instruction-card">
+              <div class="instruction-header">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 6v6l4 2"/>
+                </svg>
+                <h3>Quick Import Guide</h3>
+              </div>
+              <ol class="instruction-steps">
+                <li>Navigate to a LinkedIn profile</li>
+                <li>Click the CareerVine ribbon</li>
+                <li>Review extracted data</li>
+                <li>Import to CareerVine</li>
+              </ol>
+            </div>
+            
+            <div class="page-status-card" id="pageStatusCard">
+              <div class="status-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"/>
+                  <path d="m21 21-4.35-4.35"/>
+                </svg>
+              </div>
+              <div class="status-content">
+                <p class="status-label">Current page</p>
+                <p id="currentPageInfo" class="status-value">Not a LinkedIn profile</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Tab -->
+          <div id="recentTab" class="tab-content">
+            <div class="recent-header">
+              <h3>Recent Imports</h3>
+            </div>
+            <div id="recentContacts" class="recent-list">
+              <div class="empty-state">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                  <circle cx="9" cy="7" r="4"/>
+                  <path d="m22 21-3-3"/>
+                </svg>
+                <p>No contacts imported yet</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Loading Section -->
+        <section id="loadingSection" class="loading-section" style="display: none">
+          <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <p class="loading-text">Loading...</p>
+          </div>
+        </section>
+      </main>
+
+      <!-- Bottom Bar -->
+      <footer class="bottom-bar">
+        <button id="signOutBtn" class="btn btn-text" style="display: none">
+          <span>Sign Out</span>
+        </button>
+        <div class="app-version">v2.0.0</div>
+      </footer>
+    </div>
+
+    <!-- Scripts -->
+    <script src="../utils/api.js"></script>
+    <script src="../utils/storage.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

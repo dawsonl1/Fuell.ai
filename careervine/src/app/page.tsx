@@ -101,6 +101,7 @@ export default function Home() {
         preferred_contact_value: null,
         contact_status: null,
         expected_graduation: null,
+        location_id: null,
       });
       setName("");
       setIndustry("");

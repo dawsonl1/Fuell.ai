@@ -26,6 +26,7 @@ export type TagRow = Database["public"]["Tables"]["tags"]["Row"];
 
 /** Contact with all related data as returned by getContacts() */
 export type Contact = ContactRow & {
+  locations: Database["public"]["Tables"]["locations"]["Row"] | null;
   contact_emails: Database["public"]["Tables"]["contact_emails"]["Row"][];
   contact_phones: Database["public"]["Tables"]["contact_phones"]["Row"][];
   contact_companies: (Database["public"]["Tables"]["contact_companies"]["Row"] & {
@@ -98,3 +99,43 @@ export type FollowUpReminder = {
   last_touch: string | null;
   days_overdue: number;
 };
+
+// ── Gmail types ──
+
+/** Gmail connection status (safe projection without tokens) */
+export type GmailConnection = {
+  id: number;
+  gmail_address: string;
+  last_gmail_sync_at: string | null;
+  created_at: string | null;
+};
+
+/** Cached email metadata row */
+export type EmailMessage = Database["public"]["Tables"]["email_messages"]["Row"];
+
+/** Full email content as returned by the message detail endpoint */
+export type EmailMessageFull = {
+  subject: string;
+  from: string;
+  to: string;
+  date: string;
+  bodyHtml: string | null;
+  bodyText: string | null;
+  messageId: string;
+  threadId: string;
+};
+
+// ── Scheduled email types ──
+
+/** A queued email waiting to be sent */
+export type ScheduledEmail = Database["public"]["Tables"]["scheduled_emails"]["Row"];
+
+// ── Email follow-up types ──
+
+/** A follow-up sequence with its messages */
+export type EmailFollowUp = Database["public"]["Tables"]["email_follow_ups"]["Row"] & {
+  email_follow_up_messages: EmailFollowUpMessage[];
+};
+
+/** Individual follow-up message in a sequence */
+export type EmailFollowUpMessage = Database["public"]["Tables"]["email_follow_up_messages"]["Row"];

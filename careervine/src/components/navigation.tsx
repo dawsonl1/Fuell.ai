@@ -12,18 +12,21 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/components/auth-provider";
+import { useCompose } from "@/components/compose-email-context";
 import SignOutButton from "@/components/sign-out-button";
-import { Users, Calendar, CheckSquare, LayoutDashboard, Sprout, Settings } from "lucide-react";
+import { Users, Calendar, CheckSquare, LayoutDashboard, Sprout, Inbox } from "lucide-react";
 
 export default function Navigation() {
   const { user } = useAuth();
   const pathname = usePathname();
+  const { gmailConnected } = useCompose();
 
   if (!user) return null;
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/contacts", label: "Contacts", icon: Users },
+    ...(gmailConnected ? [{ href: "/inbox", label: "Inbox", icon: Inbox }] : []),
     { href: "/meetings", label: "Activity", icon: Calendar },
     { href: "/action-items", label: "Actions", icon: CheckSquare },
   ];
@@ -45,7 +48,7 @@ export default function Navigation() {
           <div className="hidden md:flex items-center gap-1">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const active = pathname === item.href;
+              const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
               return (
                 <Link
                   key={item.href}
@@ -84,7 +87,7 @@ export default function Navigation() {
         <div className="flex md:hidden -mx-4 overflow-x-auto border-t border-outline-variant">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const active = pathname === item.href;
+            const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
             return (
               <Link
                 key={item.href}

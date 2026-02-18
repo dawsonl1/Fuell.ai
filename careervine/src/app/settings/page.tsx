@@ -18,9 +18,10 @@ import { useAuth } from "@/components/auth-provider";
 import Navigation from "@/components/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { getUserProfile, updateUserProfile } from "@/lib/queries";
+import { getUserProfile, updateUserProfile, getGmailConnection } from "@/lib/queries";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser-client";
-import { User, Phone, Mail, Check, Lock } from "lucide-react";
+import type { GmailConnection } from "@/lib/types";
+import { User, Phone, Mail, Check, Lock, RefreshCw, Unplug, MailCheck } from "lucide-react";
 
 const inputClasses =
   "w-full h-14 px-4 bg-surface-container-low text-foreground rounded-[4px] border border-outline placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:border-2 transition-colors text-sm";
@@ -44,8 +45,18 @@ export default function SettingsPage() {
   const [passwordSaved, setPasswordSaved] = useState(false);
   const [passwordError, setPasswordError] = useState("");
 
+  // Gmail
+  const [gmailConn, setGmailConn] = useState<GmailConnection | null>(null);
+  const [gmailLoading, setGmailLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState("");
+  const [disconnecting, setDisconnecting] = useState(false);
+
   useEffect(() => {
-    if (user) loadProfile();
+    if (user) {
+      loadProfile();
+      loadGmailStatus();
+    }
   }, [user]);
 
   const loadProfile = async () => {
@@ -59,6 +70,52 @@ export default function SettingsPage() {
       console.error("Error loading profile:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadGmailStatus = async () => {
+    if (!user) return;
+    try {
+      const conn = await getGmailConnection(user.id);
+      setGmailConn(conn as GmailConnection | null);
+    } catch {
+      // Not connected — that's fine
+    } finally {
+      setGmailLoading(false);
+    }
+  };
+
+  const handleGmailSync = async () => {
+    setSyncing(true);
+    setSyncResult("");
+    try {
+      const res = await fetch("/api/gmail/sync", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setSyncResult(`Synced ${data.totalSynced} emails`);
+      loadGmailStatus();
+      setTimeout(() => setSyncResult(""), 4000);
+    } catch (err) {
+      setSyncResult(err instanceof Error ? err.message : "Sync failed");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleGmailDisconnect = async () => {
+    if (!confirm("Disconnect Gmail? This will remove all cached email data.")) return;
+    setDisconnecting(true);
+    try {
+      const res = await fetch("/api/gmail/disconnect", { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error);
+      }
+      setGmailConn(null);
+    } catch (err) {
+      console.error("Disconnect error:", err);
+    } finally {
+      setDisconnecting(false);
     }
   };
 
@@ -268,6 +325,74 @@ export default function SettingsPage() {
                 )}
               </div>
             </form>
+          </CardContent>
+        </Card>
+        {/* Email integration */}
+        <Card variant="outlined" className="mt-6">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-2 mb-5">
+              <MailCheck className="h-5 w-5 text-muted-foreground" />
+              <h2 className="text-base font-medium text-foreground">Email integration</h2>
+            </div>
+
+            {gmailLoading ? (
+              <div className="flex items-center gap-3 text-muted-foreground">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent" />
+                <span className="text-sm">Checking connection…</span>
+              </div>
+            ) : gmailConn ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-primary-container/30">
+                  <div className="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center">
+                    <Mail className="h-4 w-4 text-on-primary-container" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{gmailConn.gmail_address}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {gmailConn.last_gmail_sync_at
+                        ? `Last synced ${new Date(gmailConn.last_gmail_sync_at).toLocaleString()}`
+                        : "Not yet synced"}
+                    </p>
+                  </div>
+                </div>
+
+                {syncResult && (
+                  <p className="text-sm text-primary font-medium">{syncResult}</p>
+                )}
+
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="button"
+                    onClick={handleGmailSync}
+                    loading={syncing}
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
+                    Sync now
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="text"
+                    onClick={handleGmailDisconnect}
+                    loading={disconnecting}
+                  >
+                    <Unplug className="h-4 w-4 mr-2" />
+                    Disconnect
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Connect your Gmail account to view email history with your contacts.
+                </p>
+                <a href="/api/gmail/auth">
+                  <Button type="button">
+                    <Mail className="h-4 w-4 mr-2" />
+                    Connect Gmail
+                  </Button>
+                </a>
+              </div>
+            )}
           </CardContent>
         </Card>
       </main>
