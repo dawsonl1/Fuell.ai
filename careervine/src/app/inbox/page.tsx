@@ -37,6 +37,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   FileText,
+  MoreVertical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -97,6 +98,11 @@ export default function InboxPage() {
   // Move-to-folder dropdown
   const [moveDropdownMsgId, setMoveDropdownMsgId] = useState<string | null>(null);
   const moveDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Thread action menu (3-dot)
+  const [threadActionMenuId, setThreadActionMenuId] = useState<string | null>(null);
+  const [threadActionMoveOpen, setThreadActionMoveOpen] = useState(false);
+  const threadActionRef = useRef<HTMLDivElement>(null);
 
   // Follow-up modal
   const [followUpModal, setFollowUpModal] = useState<{
@@ -174,10 +180,14 @@ export default function InboxPage() {
       if (moveDropdownMsgId && moveDropdownRef.current && !moveDropdownRef.current.contains(e.target as Node)) {
         setMoveDropdownMsgId(null);
       }
+      if (threadActionMenuId && threadActionRef.current && !threadActionRef.current.contains(e.target as Node)) {
+        setThreadActionMenuId(null);
+        setThreadActionMoveOpen(false);
+      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [moveDropdownMsgId]);
+  }, [moveDropdownMsgId, threadActionMenuId]);
 
   const handleSync = async () => {
     setSyncing(true);
@@ -823,6 +833,102 @@ export default function InboxPage() {
                   <span className={`text-xs shrink-0 ${isUnread ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
                     {thread.latestDate ? formatDate(thread.latestDate) : ""}
                   </span>
+                  {/* 3-dot action menu */}
+                  <div className="relative shrink-0" ref={threadActionMenuId === thread.threadId ? threadActionRef : undefined}>
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-surface-container-low transition-colors cursor-pointer opacity-0 group-hover/thread:opacity-100"
+                      title="Actions"
+                      onClick={(e) => { e.stopPropagation(); setThreadActionMenuId(threadActionMenuId === thread.threadId ? null : thread.threadId); setThreadActionMoveOpen(false); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setThreadActionMenuId(thread.threadId); } }}
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </div>
+                    {threadActionMenuId === thread.threadId && (
+                      <div className="absolute right-0 top-8 z-50 w-44 bg-surface-container-high rounded-xl shadow-lg border border-outline-variant py-1" onClick={(e) => e.stopPropagation()}>
+                        {/* Reply */}
+                        {tabCtx !== "trash" && tabCtx !== "hidden" && (
+                          <button
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-surface-container-low cursor-pointer transition-colors flex items-center gap-2.5"
+                            onClick={() => {
+                              const lastMsg = thread.messages[thread.messages.length - 1];
+                              const replyTo = lastMsg.direction === "outbound" ? (lastMsg.to_addresses?.[0] || "") : (lastMsg.from_address || "");
+                              const subj = thread.subject.replace(/^(Re:\s*)+/i, "");
+                              openCompose({ to: replyTo, name: contactName || undefined, subject: `Re: ${subj}`, threadId: thread.threadId });
+                              setThreadActionMenuId(null);
+                            }}
+                          >
+                            <Reply className="h-3.5 w-3.5 text-muted-foreground" /> Reply
+                          </button>
+                        )}
+                        {/* Move to */}
+                        {(tabCtx === "inbox" || tabCtx === "sent") && gmailLabels.length > 0 && (
+                          <div className="relative">
+                            <button
+                              type="button"
+                              className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-surface-container-low cursor-pointer transition-colors flex items-center gap-2.5"
+                              onClick={() => setThreadActionMoveOpen(!threadActionMoveOpen)}
+                            >
+                              <FolderInput className="h-3.5 w-3.5 text-muted-foreground" /> Move to
+                              <ChevronDown className={`h-3 w-3 ml-auto text-muted-foreground transition-transform ${threadActionMoveOpen ? "rotate-180" : ""}`} />
+                            </button>
+                            {threadActionMoveOpen && (
+                              <div className="border-t border-outline-variant/50 max-h-40 overflow-y-auto">
+                                {gmailLabels.map((label) => (
+                                  <button
+                                    key={label.id}
+                                    type="button"
+                                    className="w-full text-left px-3 pl-9 py-1.5 text-xs text-foreground hover:bg-surface-container-low cursor-pointer transition-colors"
+                                    onClick={() => { handleMoveEmail(latest.gmail_message_id, label.id); setThreadActionMenuId(null); setThreadActionMoveOpen(false); }}
+                                  >
+                                    {label.name}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {/* Hide */}
+                        {tabCtx === "hidden" ? (
+                          <button
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-surface-container-low cursor-pointer transition-colors flex items-center gap-2.5"
+                            onClick={() => { handleUnhideEmail(latest.gmail_message_id); setThreadActionMenuId(null); }}
+                          >
+                            <Eye className="h-3.5 w-3.5 text-muted-foreground" /> Unhide
+                          </button>
+                        ) : tabCtx !== "trash" ? (
+                          <button
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-surface-container-low cursor-pointer transition-colors flex items-center gap-2.5"
+                            onClick={() => { handleHideEmail(latest.gmail_message_id); setThreadActionMenuId(null); }}
+                          >
+                            <EyeOff className="h-3.5 w-3.5 text-muted-foreground" /> Hide
+                          </button>
+                        ) : null}
+                        {/* Trash / Restore */}
+                        {tabCtx === "trash" ? (
+                          <button
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-surface-container-low cursor-pointer transition-colors flex items-center gap-2.5"
+                            onClick={() => { handleRestoreEmail(latest.gmail_message_id); setThreadActionMenuId(null); }}
+                          >
+                            <RotateCcw className="h-3.5 w-3.5 text-muted-foreground" /> Restore
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-xs text-destructive hover:bg-surface-container-low cursor-pointer transition-colors flex items-center gap-2.5"
+                            onClick={() => { handleTrashEmail(latest.gmail_message_id); setThreadActionMenuId(null); }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" /> Trash
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </button>
 
