@@ -14,7 +14,7 @@ import {
 } from "@/lib/queries";
 import type { Contact, TagRow } from "@/lib/types";
 import {
-  Plus, Users, Search, ChevronRight, ChevronDown, Mail, Phone,
+  Plus, Users, Search, ChevronDown, Mail, Phone,
   Tag, ExternalLink, Briefcase, GraduationCap, Check, Trash2, X,
 } from "lucide-react";
 import { SchoolAutocomplete } from "@/components/ui/school-autocomplete";
@@ -100,6 +100,22 @@ export default function ContactsPage() {
     }
     return Array.from(tagMap, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
   }, [contacts]);
+
+  // Search suggestions: name-matches first, then tag-only matches
+  const { nameSuggestions, tagSuggestions } = useMemo(() => {
+    if (!searchQuery.trim()) return { nameSuggestions: [], tagSuggestions: [] };
+    const q = searchQuery.toLowerCase();
+    const nameHit = (c: Contact) =>
+      c.name.toLowerCase().includes(q) ||
+      c.contact_emails.some((e) => e.email?.toLowerCase().includes(q)) ||
+      c.contact_companies.some((cc) => cc.companies.name.toLowerCase().includes(q) || cc.title?.toLowerCase().includes(q)) ||
+      c.industry?.toLowerCase().includes(q);
+    const tagHit = (c: Contact) => c.contact_tags.some((ct) => ct.tags.name.toLowerCase().includes(q));
+    const nameSuggestions = contacts.filter(nameHit).slice(0, 5);
+    const nameIds = new Set(nameSuggestions.map(c => c.id));
+    const tagSuggestions = contacts.filter(c => !nameIds.has(c.id) && tagHit(c)).slice(0, 5);
+    return { nameSuggestions, tagSuggestions };
+  }, [contacts, searchQuery]);
 
   const filteredContacts = useMemo(() => {
     let result = contacts;
@@ -259,7 +275,7 @@ export default function ContactsPage() {
           </Button>
         </div>
 
-        {/* Search bar */}
+        {/* Search bar + suggestions */}
         <div className="relative mb-4">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
@@ -267,38 +283,52 @@ export default function ContactsPage() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full h-12 pl-11 pr-4 bg-surface-container-low text-foreground rounded-full border border-outline-variant placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:border-2 transition-colors text-sm"
-            placeholder="Search by name, company, email, or tag…"
+            placeholder="Search contacts…"
           />
+          {searchQuery.trim() && (nameSuggestions.length > 0 || tagSuggestions.length > 0) && (
+            <div className="absolute left-0 top-full mt-1.5 w-full z-50 bg-surface-container-high rounded-2xl shadow-lg border border-outline-variant overflow-hidden">
+              {nameSuggestions.map((c) => {
+                const currentCompany = c.contact_companies.find((cc) => cc.is_current);
+                return (
+                  <button key={c.id} type="button" onClick={() => { router.push(`/contacts/${c.id}`); setSearchQuery(""); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-surface-container cursor-pointer transition-colors text-left">
+                    <div className="w-7 h-7 rounded-full bg-primary-container flex items-center justify-center shrink-0 text-on-primary-container text-xs font-medium">
+                      {c.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-foreground truncate">{c.name}</p>
+                      {currentCompany && <p className="text-xs text-muted-foreground truncate">{currentCompany.title}{currentCompany.title && currentCompany.companies.name ? " at " : ""}{currentCompany.companies.name}</p>}
+                    </div>
+                  </button>
+                );
+              })}
+              {tagSuggestions.length > 0 && (
+                <>
+                  <p className="px-4 pt-2 pb-1 text-[10px] font-medium text-muted-foreground uppercase tracking-wide border-t border-outline-variant/50">By tag</p>
+                  {tagSuggestions.map((c) => {
+                    const matchedTag = c.contact_tags.find(ct => ct.tags.name.toLowerCase().includes(searchQuery.toLowerCase()));
+                    const currentCompany = c.contact_companies.find((cc) => cc.is_current);
+                    return (
+                      <button key={c.id} type="button" onClick={() => { router.push(`/contacts/${c.id}`); setSearchQuery(""); }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-surface-container cursor-pointer transition-colors text-left">
+                        <div className="w-7 h-7 rounded-full bg-primary-container flex items-center justify-center shrink-0 text-on-primary-container text-xs font-medium">
+                          {c.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-foreground truncate">{c.name}</p>
+                          {currentCompany && <p className="text-xs text-muted-foreground truncate">{currentCompany.title}{currentCompany.title && currentCompany.companies.name ? " at " : ""}{currentCompany.companies.name}</p>}
+                        </div>
+                        {matchedTag && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-surface-container text-muted-foreground shrink-0">{matchedTag.tags.name}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </>
+              )}
+            </div>
+          )}
         </div>
-
-        {/* Tag filter pills */}
-        {uniqueTags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-4">
-            <button
-              onClick={() => setSelectedTagFilter(null)}
-              className={`h-7 px-3 rounded-full text-xs font-medium cursor-pointer transition-colors border ${
-                selectedTagFilter === null
-                  ? "bg-secondary-container text-on-secondary-container border-secondary-container"
-                  : "bg-transparent text-muted-foreground border-outline-variant hover:bg-surface-container"
-              }`}
-            >
-              All
-            </button>
-            {uniqueTags.map((tag) => (
-              <button
-                key={tag.id}
-                onClick={() => setSelectedTagFilter(selectedTagFilter === tag.id ? null : tag.id)}
-                className={`h-7 px-3 rounded-full text-xs font-medium cursor-pointer transition-colors border ${
-                  selectedTagFilter === tag.id
-                    ? "bg-secondary-container text-on-secondary-container border-secondary-container"
-                    : "bg-transparent text-muted-foreground border-outline-variant hover:bg-surface-container"
-                }`}
-              >
-                {tag.name}
-              </button>
-            ))}
-          </div>
-        )}
 
         {/* Empty state */}
         {contacts.length === 0 && (
@@ -328,17 +358,17 @@ export default function ContactsPage() {
 
             return (
               <div key={contact.id} className="rounded-[12px] border border-outline-variant/60 bg-white hover:border-outline-variant hover:shadow-sm transition-all">
-                <div className="flex items-center gap-3 p-3.5">
+                <div
+                  className="flex items-center gap-3 p-3.5 cursor-pointer"
+                  onClick={() => router.push(`/contacts/${contact.id}`)}
+                >
                   {/* Avatar */}
                   <div className="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center shrink-0 text-on-primary-container text-sm font-medium">
                     {contact.name.charAt(0).toUpperCase()}
                   </div>
 
-                  {/* Name + subtitle — clickable to navigate */}
-                  <div
-                    className="flex-1 min-w-0 cursor-pointer"
-                    onClick={() => router.push(`/contacts/${contact.id}`)}
-                  >
+                  {/* Name + subtitle */}
+                  <div className="flex-1 min-w-0">
                     <h3 className="text-sm font-medium text-foreground truncate">{contact.name}</h3>
                     <p className="text-xs text-muted-foreground truncate">
                       {currentCompany
@@ -356,40 +386,21 @@ export default function ContactsPage() {
                     </span>
                   )}
 
-                  {/* Status badge */}
+                  {/* Status badge — Student or Professional only */}
                   {contact.contact_status && (
                     <span className="hidden md:inline-flex text-[10px] px-2 py-0.5 rounded-full bg-secondary-container text-on-secondary-container font-medium capitalize">
                       {contact.contact_status}
                     </span>
                   )}
 
-                  {/* Tags (max 2) */}
-                  <div className="hidden lg:flex gap-1">
-                    {contact.contact_tags.slice(0, 2).map((ct) => (
-                      <span key={ct.tag_id} className="text-[10px] px-2 py-0.5 rounded-full bg-surface-container text-muted-foreground">
-                        {ct.tags.name}
-                      </span>
-                    ))}
-                    {contact.contact_tags.length > 2 && (
-                      <span className="text-[10px] px-1.5 py-0.5 text-muted-foreground">+{contact.contact_tags.length - 2}</span>
-                    )}
-                  </div>
-
-                  {/* Expand/Chevron */}
+                  {/* Expand chevron — stops propagation so bar click doesn't navigate */}
                   <button
+                    type="button"
                     onClick={(e) => { e.stopPropagation(); setExpandedId(isExpanded ? null : contact.id); }}
-                    className="p-1.5 rounded-full text-muted-foreground hover:text-foreground cursor-pointer transition-colors shrink-0"
+                    className="group p-1.5 rounded-full text-muted-foreground hover:text-foreground cursor-pointer transition-colors shrink-0"
                     title="Quick preview"
                   >
-                    <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-0" : "-rotate-90"}`} />
-                  </button>
-
-                  <button
-                    onClick={() => router.push(`/contacts/${contact.id}`)}
-                    className="p-1.5 rounded-full text-muted-foreground hover:text-primary cursor-pointer transition-colors shrink-0"
-                    title="View details"
-                  >
-                    <ChevronRight className="h-4 w-4" />
+                    <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isExpanded ? "rotate-0" : "-rotate-90 group-hover:rotate-0"}`} />
                   </button>
                 </div>
 

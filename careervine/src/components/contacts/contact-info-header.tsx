@@ -260,6 +260,7 @@ export function ContactInfoHeader({ contact, userId, onContactUpdate, onContactD
     const currentCompany = contact.contact_companies.find((cc) => cc.is_current);
     const schoolInfo = contact.contact_schools?.[0];
     const locationParts = [contact.locations?.city, contact.locations?.state, contact.locations?.country].filter(Boolean);
+    const primaryEmail = contact.contact_emails.find((e) => e.is_primary)?.email || contact.contact_emails[0]?.email;
 
     return (
       <div className="space-y-4">
@@ -289,7 +290,17 @@ export function ContactInfoHeader({ contact, userId, onContactUpdate, onContactD
               </p>
             )}
           </div>
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
+            {gmailConnected && primaryEmail && (
+              <Button
+                type="button"
+                variant="tonal"
+                size="sm"
+                onClick={() => openCompose({ to: primaryEmail, name: contact.name })}
+              >
+                <Send className="h-4 w-4" /> Send email
+              </Button>
+            )}
             {contact.linkedin_url && (
               <a href={contact.linkedin_url} target="_blank" rel="noopener noreferrer" className="p-2 rounded-full text-muted-foreground hover:text-primary cursor-pointer transition-colors">
                 <ExternalLink className="h-[18px] w-[18px]" />
@@ -311,11 +322,11 @@ export function ContactInfoHeader({ contact, userId, onContactUpdate, onContactD
               <span key={email.id} className="inline-flex items-center gap-1.5 h-7 px-3 rounded-[8px] bg-surface-container-low text-xs text-foreground group/email">
                 <Mail className="h-3 w-3 text-muted-foreground" />
                 {email.email}{email.is_primary && <span className="text-primary font-medium">·primary</span>}
-                {gmailConnected && email.email && (
+                {gmailConnected && email.email && contact.contact_emails.length > 1 && (
                   <button
                     type="button"
-                    className="ml-0.5 p-0.5 rounded text-muted-foreground hover:text-primary opacity-0 group-hover/email:opacity-100 transition-all cursor-pointer"
-                    title={`Send email to ${email.email}`}
+                    className="ml-0.5 p-0.5 rounded text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                    title={`Send to ${email.email}`}
                     onClick={() => openCompose({ to: email.email!, name: contact.name })}
                   >
                     <Send className="h-3 w-3" />

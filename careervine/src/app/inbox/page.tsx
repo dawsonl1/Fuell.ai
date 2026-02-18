@@ -1026,7 +1026,7 @@ export default function InboxPage() {
 
   const sidebarItems: { key: SidebarTab; label: string; icon: typeof Inbox; count: number }[] = [
     { key: "inbox", label: "Inbox", icon: Inbox, count: unreadEmailCount },
-    { key: "sent", label: "Sent", icon: Send, count: sentCount },
+    { key: "sent", label: "Sent", icon: Send, count: 0 },
     { key: "drafts", label: "Drafts", icon: FileText, count: drafts.length },
     { key: "scheduled", label: "Scheduled", icon: Clock, count: scheduledEmails.length },
     { key: "followups", label: "Follow-ups", icon: Clock, count: pendingFollowUpCount },

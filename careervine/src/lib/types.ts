@@ -62,6 +62,7 @@ export type SimpleContact = {
   id: number;
   name: string;
   email?: string;
+  emails?: string[];
 };
 
 /** Action item with contact info as returned by getActionItemsForMeeting() */
@@ -87,7 +88,10 @@ export type ContactMeeting = {
   id: number;
   meeting_date: string;
   meeting_type: string;
+  title: string | null;
   notes: string | null;
+  private_notes: string | null;
+  calendar_description: string | null;
   transcript: string | null;
 };
 

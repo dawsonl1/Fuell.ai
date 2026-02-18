@@ -100,9 +100,15 @@ export async function POST(request: NextRequest) {
 
     // Create the individual follow-up messages
     const sentAt = new Date(originalSentAt);
-    const msgRows = messages.map((m: { sendAfterDays: number; subject: string; bodyHtml: string }, idx: number) => {
+    const msgRows = messages.map((m: { sendAfterDays: number; subject: string; bodyHtml: string; sendTime?: string }, idx: number) => {
       const scheduledDate = new Date(sentAt);
       scheduledDate.setDate(scheduledDate.getDate() + m.sendAfterDays);
+      if (m.sendTime) {
+        const [h, min] = m.sendTime.split(":").map(Number);
+        scheduledDate.setHours(h, min, 0, 0);
+      } else {
+        scheduledDate.setHours(9, 0, 0, 0);
+      }
       return {
         follow_up_id: followUp.id,
         sequence_number: idx + 1,

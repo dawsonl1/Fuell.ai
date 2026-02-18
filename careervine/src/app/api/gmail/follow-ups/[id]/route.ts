@@ -57,10 +57,15 @@ export async function PUT(
 
     // Insert new messages
     const sentAt = new Date(followUp.original_sent_at);
-    const msgRows = messages.map((m: { sendAfterDays: number; subject: string; bodyHtml: string }, idx: number) => {
+    const msgRows = messages.map((m: { sendAfterDays: number; subject: string; bodyHtml: string; sendTime?: string }, idx: number) => {
       const scheduledDate = new Date(sentAt);
       scheduledDate.setDate(scheduledDate.getDate() + m.sendAfterDays);
-
+      if (m.sendTime) {
+        const [h, min] = m.sendTime.split(":").map(Number);
+        scheduledDate.setHours(h, min, 0, 0);
+      } else {
+        scheduledDate.setHours(9, 0, 0, 0);
+      }
       // Get the next sequence number (after any already-sent messages)
       return {
         follow_up_id: followUpId,

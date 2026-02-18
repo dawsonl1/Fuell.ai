@@ -4,8 +4,8 @@ import { createSupabaseServiceClient } from "@/lib/supabase/service-client";
 import { fetchCalendarEvents, getCalendarTimezone, getCalendarList } from "@/lib/calendar";
 
 
-const SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
-const SYNC_FORCE_COOLDOWN_MS = 30 * 1000; // 30 seconds for forced syncs
+const SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes (auto-sync)
+const SYNC_FORCE_COOLDOWN_MS = 5 * 1000; // 5 seconds (manual sync button)
 
 /**
  * POST /api/calendar/sync
@@ -77,20 +77,19 @@ export async function POST(request: NextRequest) {
       const result = await fetchCalendarEvents(user.id, {
         syncToken: conn.data.calendar_sync_token,
         timeMin: new Date().toISOString(),
-        timeMax: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+        timeMax: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
       });
       events = result.events;
       nextSyncToken = result.nextSyncToken || null;
     } catch (err: any) {
       if (err.message === "SYNC_TOKEN_EXPIRED") {
-        // Clear token and retry with full fetch
         await service
           .from("gmail_connections")
           .update({ calendar_sync_token: null })
           .eq("user_id", user.id);
         const result = await fetchCalendarEvents(user.id, {
           timeMin: new Date().toISOString(),
-          timeMax: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+          timeMax: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
         });
         events = result.events;
         nextSyncToken = result.nextSyncToken || null;

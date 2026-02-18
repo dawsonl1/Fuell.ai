@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server-client";
 import { createSupabaseServiceClient } from "@/lib/supabase/service-client";
 import { queryFreeBusy } from "@/lib/calendar";
-import { formatInTimeZone, toZonedTime } from "date-fns-tz";
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 
 /**
  * GET /api/calendar/availability
@@ -100,24 +100,13 @@ export async function GET(request: NextRequest) {
       const dayOfWeek = d.getDay() === 0 ? 7 : d.getDay(); // Convert to 1=Mon, 7=Sun
       if (!daysOfWeek.includes(dayOfWeek)) continue;
 
-      const dateStr = d.toISOString().split("T")[0];
-      const label = d.toLocaleDateString("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-      });
+      // Get the date string in the user's timezone (not UTC) to avoid off-by-one days
+      const dateStr = formatInTimeZone(d, userTimezone, "yyyy-MM-dd");
+      const label = formatInTimeZone(d, userTimezone, "EEE, MMM d");
 
-      // Parse window times in user's timezone
-      const [startHour, startMin] = windowStart.split(":").map(Number);
-      const [endHour, endMin] = windowEnd.split(":").map(Number);
-
-      // Create dates in UTC, then convert to user's timezone for comparison
-      const dayStartLocal = new Date(d.getFullYear(), d.getMonth(), d.getDate(), startHour, startMin);
-      const dayEndLocal = new Date(d.getFullYear(), d.getMonth(), d.getDate(), endHour, endMin);
-      
-      // For simplicity, treat these as UTC times (the API expects ISO strings)
-      const dayStart = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), startHour, startMin));
-      const dayEnd = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), endHour, endMin));
+      // Build window boundaries as "HH:MM in userTimezone" → UTC Date objects
+      const dayStart = fromZonedTime(`${dateStr}T${windowStart}`, userTimezone);
+      const dayEnd = fromZonedTime(`${dateStr}T${windowEnd}`, userTimezone);
 
       // Find free slots
       const slots = computeFreeSlots(dayStart, dayEnd, mergedBusy, duration, userTimezone);

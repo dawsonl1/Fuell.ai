@@ -51,9 +51,10 @@ export function ComposeEmailModal() {
 
   // Contact autocomplete
   const [contactQuery, setContactQuery] = useState("");
-  const [contactSuggestions, setContactSuggestions] = useState<Array<{ id: number; name: string; email: string }>>([]);
+  const [contactSuggestions, setContactSuggestions] = useState<Array<{ id: number; name: string; email: string; emails: string[] }>>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedContactName, setSelectedContactName] = useState("");
+  const [contactEmailOptions, setContactEmailOptions] = useState<string[]>([]);
   const contactSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
@@ -120,6 +121,7 @@ export function ComposeEmailModal() {
       setShowSuggestions(false);
       setSelectedContactName(prefillName || "");
       setContactQuery("");
+      setContactEmailOptions([]);
       setTimeout(() => {
         if (prefillTo) {
           // Focus subject if To is pre-filled
@@ -147,6 +149,7 @@ export function ComposeEmailModal() {
   const handleToChange = (value: string) => {
     setTo(value);
     setSelectedContactName("");
+    setContactEmailOptions([]);
     // If it looks like an email already, don't search
     if (value.includes("@")) {
       setShowSuggestions(false);
@@ -157,12 +160,12 @@ export function ComposeEmailModal() {
     contactSearchTimer.current = setTimeout(() => searchContacts(value), 200);
   };
 
-  const handleSelectContact = (contact: { id: number; name: string; email: string }) => {
+  const handleSelectContact = (contact: { id: number; name: string; email: string; emails: string[] }) => {
     setTo(contact.email);
     setSelectedContactName(contact.name);
     setShowSuggestions(false);
     setContactSuggestions([]);
-    // Also set prefillName equivalent for AI write
+    setContactEmailOptions(contact.emails.length > 1 ? contact.emails : []);
   };
 
   // Close suggestions on outside click
@@ -401,6 +404,27 @@ export function ComposeEmailModal() {
               </button>
             </div>
 
+            {/* Multi-email picker — shown when selected contact has >1 email */}
+            {contactEmailOptions.length > 1 && (
+              <div className="flex items-center gap-1.5 px-4 py-1.5 border-b border-outline-variant/50 flex-wrap">
+                <span className="text-[11px] text-muted-foreground shrink-0">Send to:</span>
+                {contactEmailOptions.map((email) => (
+                  <button
+                    key={email}
+                    type="button"
+                    onClick={() => setTo(email)}
+                    className={`text-[11px] px-2 py-0.5 rounded-full transition-colors ${
+                      to === email
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-surface-container-low text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {email}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* CC / BCC */}
             {showCcBcc && (
               <>
@@ -534,9 +558,22 @@ export function ComposeEmailModal() {
 
             {/* Footer */}
             <div className="flex items-center justify-between px-6 py-4">
-              <Button type="button" variant="text" onClick={() => { deleteDraft(); closeCompose(); }}>
-                Discard
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="text" onClick={() => { deleteDraft(); closeCompose(); }}>
+                  Discard
+                </Button>
+                <Button
+                  type="button"
+                  variant="text"
+                  size="sm"
+                  onClick={async () => {
+                    await saveDraft({ to, cc, bcc, subject, bodyHtml });
+                    closeCompose();
+                  }}
+                >
+                  Save draft
+                </Button>
+              </div>
               <div className="flex items-center gap-2">
                 {!showSchedule ? (
                   <>

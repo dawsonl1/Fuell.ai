@@ -27,12 +27,13 @@ export async function GET(request: NextRequest) {
 
     const results = (data || []).map((c) => {
       const emails = c.contact_emails as unknown as Array<{ email: string | null; is_primary: boolean }> | null;
-      const primary = emails?.find((e) => e.is_primary)?.email;
-      const fallback = emails?.[0]?.email;
+      const allEmails = (emails || []).map((e) => e.email).filter(Boolean) as string[];
+      const primary = emails?.find((e) => e.is_primary)?.email || allEmails[0] || null;
       return {
         id: c.id,
         name: c.name,
-        email: primary || fallback || null,
+        email: primary,
+        emails: allEmails,
       };
     }).filter((c) => c.email);
 

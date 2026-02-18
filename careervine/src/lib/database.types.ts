@@ -154,7 +154,10 @@ export type Database = {
           user_id: string;               // Foreign key to users
           meeting_date: string;          // When the meeting occurred
           meeting_type: string;           // Type of meeting (coffee, video, etc.)
-          notes: string | null;          // Meeting notes
+          title: string | null;          // Custom meeting name (overrides auto-generated)
+          notes: string | null;          // Meeting notes (past meetings)
+          private_notes: string | null;  // Private reminders for future meetings
+          calendar_description: string | null; // Description for Google Calendar invite
           transcript: string | null;      // Full transcript if available
         };
         Insert: Omit<Database["public"]["Tables"]["meetings"]["Row"], "id">;

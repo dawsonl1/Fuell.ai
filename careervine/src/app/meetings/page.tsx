@@ -27,13 +27,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getMeetings, createMeeting, updateMeeting, getContacts, addContactsToMeeting, replaceContactsForMeeting, createActionItem, getActionItemsForMeeting, updateActionItem, deleteActionItem, replaceContactsForActionItem, createInteraction, getAllInteractions, deleteInteraction, uploadAttachment, addAttachmentToMeeting, getAttachmentsForMeeting, getAttachmentUrl, deleteAttachment } from "@/lib/queries";
 import type { Meeting, SimpleContact, ActionItemWithContacts, MeetingActionsMap, InteractionWithContact } from "@/lib/types";
-import { Plus, Calendar, X, Search, Pencil, CheckSquare, Trash2, Check, RotateCcw, MessageSquare, Paperclip } from "lucide-react";
+import { Plus, Calendar, X, Search, Pencil, CheckSquare, Trash2, Check, RotateCcw, MessageSquare, Paperclip, Video } from "lucide-react";
 import { DatePicker } from "@/components/ui/date-picker";
 import { TimePicker } from "@/components/ui/time-picker";
 import { Select } from "@/components/ui/select";
 import { ContactPicker } from "@/components/ui/contact-picker";
 
-const emptyForm = { meeting_date: "", meeting_time: "", meeting_type: "", notes: "", transcript: "" };
+const emptyForm = { meeting_date: "", meeting_time: "", meeting_type: "", title: "", notes: "", privateNotes: "", calendarDescription: "", transcript: "" };
 const inputClasses =
   "w-full h-14 px-4 bg-surface-container-low text-foreground rounded-[4px] border border-outline placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:border-2 transition-colors text-sm";
 const labelClasses = "block text-xs font-medium text-muted-foreground mb-1.5";
@@ -85,6 +85,11 @@ export default function MeetingsPage() {
   const [meetingDuration, setMeetingDuration] = useState(60);
   const [meetingCalendarMap, setMeetingCalendarMap] = useState<Record<number, { google_event_id: string; attendees: Array<{ email: string; name: string; responseStatus: string }> }>>({});
 
+  // Search + multi-email invite
+  const [searchQuery, setSearchQuery] = useState("");
+  const [contactEmailsMap, setContactEmailsMap] = useState<Record<number, string[]>>({});
+  const [inviteEmailMap, setInviteEmailMap] = useState<Record<number, string>>({});
+
   useEffect(() => {
     if (user) {
       loadMeetings();
@@ -109,11 +114,19 @@ export default function MeetingsPage() {
     if (!user) return;
     try {
       const data = await getContacts(user.id);
-      setAllContacts((data as any[]).map((c) => ({
-        id: c.id,
-        name: c.name,
-        email: c.contact_emails?.[0]?.email || undefined,
-      })));
+      const emailsMap: Record<number, string[]> = {};
+      const contacts = (data as any[]).map((c) => {
+        const allEmails = (c.contact_emails || []).map((e: any) => e.email).filter(Boolean) as string[];
+        emailsMap[c.id] = allEmails;
+        return {
+          id: c.id,
+          name: c.name,
+          email: allEmails[0] || undefined,
+          emails: allEmails,
+        };
+      });
+      setAllContacts(contacts);
+      setContactEmailsMap(emailsMap);
     } catch (e) { console.error("Error loading contacts:", e); }
   };
 
@@ -233,17 +246,25 @@ export default function MeetingsPage() {
         : formData.meeting_date;
 
       let meetingId: number;
+      const isFutureMeeting = dateTime ? new Date(dateTime) > new Date() : false;
+      const autoSummary = formData.title ||
+        (formData.meeting_type
+          ? `${formData.meeting_type.charAt(0).toUpperCase() + formData.meeting_type.slice(1).replace("-", " ")} with ${selectedContactIds.map(id => allContacts.find(c => c.id === id)?.name).filter(Boolean).join(", ") || "Contact"}`
+          : "Meeting");
+
       if (editingMeeting) {
         await updateMeeting(editingMeeting.id, {
           meeting_date: dateTime,
           meeting_type: formData.meeting_type,
+          title: formData.title || null,
           notes: formData.notes || null,
+          private_notes: formData.privateNotes || null,
+          calendar_description: formData.calendarDescription || null,
           transcript: formData.transcript || null,
         });
         await replaceContactsForMeeting(editingMeeting.id, selectedContactIds);
         meetingId = editingMeeting.id;
 
-        // Sync update to linked Google Calendar event
         if ((editingMeeting as any).calendar_event_id) {
           try {
             const startTime = new Date(dateTime).toISOString();
@@ -251,67 +272,44 @@ export default function MeetingsPage() {
             await fetch(`/api/calendar/events/${(editingMeeting as any).calendar_event_id}`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                summary: formData.meeting_type
-                  ? `${formData.meeting_type.charAt(0).toUpperCase() + formData.meeting_type.slice(1).replace("-", " ")} with ${selectedContactIds.map(id => allContacts.find(c => c.id === id)?.name).filter(Boolean).join(", ") || "Contact"}`
-                  : "Meeting",
-                description: formData.notes || undefined,
-                startTime,
-                endTime,
-              }),
+              body: JSON.stringify({ summary: autoSummary, description: formData.calendarDescription || formData.notes || undefined, startTime, endTime }),
             });
-          } catch (err) {
-            console.error("Failed to update calendar event:", err);
-          }
+          } catch (err) { console.error("Failed to update calendar event:", err); }
         }
       } else {
         const created = await createMeeting({
           user_id: user.id,
           meeting_date: dateTime,
           meeting_type: formData.meeting_type,
+          title: formData.title || null,
           notes: formData.notes || null,
+          private_notes: formData.privateNotes || null,
+          calendar_description: formData.calendarDescription || null,
           transcript: formData.transcript || null,
         });
-        if (selectedContactIds.length > 0) {
-          await addContactsToMeeting(created.id, selectedContactIds);
-        }
+        if (selectedContactIds.length > 0) await addContactsToMeeting(created.id, selectedContactIds);
         meetingId = created.id;
 
-        // Create Google Calendar event for future meetings
-        const meetingDateTime = new Date(dateTime);
-        const isFuture = meetingDateTime > new Date();
-        if (addToCalendar && calendarConnected && isFuture && formData.meeting_time) {
+        if (addToCalendar && calendarConnected && isFutureMeeting && formData.meeting_time) {
           try {
-            const attendeeEmails = selectedContactIds
-              .map(id => allContacts.find(c => c.id === id))
-              .filter(Boolean)
-              .map(c => {
-                const contact = c as SimpleContact & { email?: string };
-                return contact.email || null;
-              })
-              .filter(Boolean) as string[];
+            const attendeeEmails = selectedContactIds.map(id => {
+              return inviteEmailMap[id] || contactEmailsMap[id]?.[0] || allContacts.find(c => c.id === id)?.email || null;
+            }).filter(Boolean) as string[];
 
             const startTime = new Date(dateTime).toISOString();
             const endTime = new Date(new Date(dateTime).getTime() + meetingDuration * 60000).toISOString();
-
             await fetch("/api/calendar/create-event", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                summary: formData.meeting_type
-                  ? `${formData.meeting_type.charAt(0).toUpperCase() + formData.meeting_type.slice(1).replace("-", " ")} with ${selectedContactIds.map(id => allContacts.find(c => c.id === id)?.name).filter(Boolean).join(", ") || "Contact"}`
-                  : "Meeting",
-                description: formData.notes || undefined,
-                startTime,
-                endTime,
-                attendeeEmails,
+                summary: autoSummary,
+                description: formData.calendarDescription || undefined,
+                startTime, endTime, attendeeEmails,
                 conferenceType: includeMeetLink ? "meet" : "none",
                 meetingId: created.id,
               }),
             });
-          } catch (err) {
-            console.error("Failed to create calendar event:", err);
-          }
+          } catch (err) { console.error("Failed to create calendar event:", err); }
         }
       }
       // Create any pending action items, linking to the meeting
@@ -344,6 +342,9 @@ export default function MeetingsPage() {
       meeting_date: dateStr,
       meeting_time: timeStr,
       meeting_type: meeting.meeting_type,
+      title: (meeting as any).title || "",
+      privateNotes: (meeting as any).private_notes || "",
+      calendarDescription: (meeting as any).calendar_description || "",
       notes: meeting.notes || "",
       transcript: meeting.transcript || "",
     });
@@ -371,6 +372,7 @@ export default function MeetingsPage() {
     setAddToCalendar(calendarConnected);
     setIncludeMeetLink(true);
     setMeetingDuration(60);
+    setInviteEmailMap({});
   };
 
   const addPendingAction = () => {
@@ -382,6 +384,15 @@ export default function MeetingsPage() {
     setActionDueDate("");
     setShowActionSub(false);
   };
+
+  // Derived: is the meeting being edited/created in the future?
+  const isFutureMeeting = (() => {
+    if (!formData.meeting_date) return false;
+    const dt = formData.meeting_time
+      ? new Date(`${formData.meeting_date}T${formData.meeting_time}`)
+      : new Date(`${formData.meeting_date}T23:59`);
+    return dt > new Date();
+  })();
 
   if (loading) {
     return (
@@ -402,7 +413,7 @@ export default function MeetingsPage() {
       <Navigation />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex justify-between items-center mb-5">
           <div>
             <h1 className="text-[28px] leading-9 font-normal text-foreground">Activity</h1>
             <p className="text-sm text-muted-foreground mt-1">
@@ -423,15 +434,41 @@ export default function MeetingsPage() {
           </div>
         </div>
 
+        {/* Search bar */}
+        <div className="relative mb-6">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search meetings and interactions…"
+            className="w-full h-11 pl-10 pr-4 bg-surface-container-low text-foreground rounded-full border border-outline-variant placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:border-2 transition-colors text-sm"
+          />
+        </div>
+
         {/* Modal */}
         {showForm && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/32" onClick={() => { const hasContent = formData.meeting_date || formData.meeting_time || formData.meeting_type || formData.notes || formData.transcript || selectedContactIds.length > 0 || pendingActions.length > 0; if (!hasContent || confirm("Discard unsaved changes?")) setShowForm(false); }} />
+            <div className="absolute inset-0 bg-black/32" onClick={() => { const hasContent = formData.meeting_date || formData.meeting_time || formData.meeting_type || formData.notes || formData.transcript || selectedContactIds.length > 0 || pendingActions.length > 0; if (!hasContent || confirm("Discard unsaved changes?")) closeForm(); }} />
             <div className="relative w-full max-w-2xl bg-surface-container-high rounded-[28px] shadow-lg max-h-[90vh] overflow-y-auto">
               <div className="px-6 pt-6 pb-4">
                 <h2 className="text-[22px] leading-7 font-normal text-foreground">{editingMeeting ? "Edit meeting" : "New meeting"}</h2>
               </div>
               <form onSubmit={handleSubmit} className="px-6 pb-6 space-y-4">
+
+                {/* Meeting name */}
+                <div>
+                  <label className={labelClasses}>Meeting name</label>
+                  <input
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    className={inputClasses}
+                    placeholder="e.g. Coffee with Alex, Informational with Jane…"
+                  />
+                </div>
+
+                {/* Date / Time / Type */}
                 <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className={labelClasses}>Date *</label>
@@ -460,76 +497,104 @@ export default function MeetingsPage() {
                   </div>
                 </div>
 
-                {/* Contact picker */}
+                {/* Contact picker — shown once date is chosen */}
+                {formData.meeting_date && (
                 <div>
                   <label className={labelClasses}>Contacts</label>
-                  {/* Selected chips */}
                   {selectedContactIds.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mb-2">
                       {selectedContactIds.map((id) => {
                         const c = allContacts.find((c) => c.id === id);
                         if (!c) return null;
+                        const emails = contactEmailsMap[id] || [];
+                        const selectedEmail = inviteEmailMap[id] || emails[0];
                         return (
-                          <span key={id} className="inline-flex items-center gap-1 h-8 pl-3 pr-1.5 rounded-full bg-secondary-container text-xs text-on-secondary-container font-medium">
-                            {c.name}
-                            <button type="button" onClick={() => setSelectedContactIds(selectedContactIds.filter((i) => i !== id))} className="p-0.5 rounded-full hover:bg-black/10 cursor-pointer">
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          </span>
+                          <div key={id} className="flex flex-col gap-1">
+                            <span className={`inline-flex items-center gap-1 h-8 pl-3 pr-1.5 rounded-full text-xs font-medium ${addToCalendar && emails.length === 0 ? "bg-amber-100 text-amber-800" : "bg-secondary-container text-on-secondary-container"}`}>
+                              {c.name}
+                              {addToCalendar && emails.length === 0 && (
+                                <span className="text-[10px] text-amber-700" title="No email saved — won't receive calendar invite">⚠ no email</span>
+                              )}
+                              <button type="button" onClick={() => { setSelectedContactIds(selectedContactIds.filter((i) => i !== id)); setInviteEmailMap(prev => { const n = {...prev}; delete n[id]; return n; }); }} className="p-0.5 rounded-full hover:bg-black/10 cursor-pointer">
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </span>
+                            {emails.length > 1 && addToCalendar && (
+                              <div className="flex items-center gap-1 pl-1 flex-wrap">
+                                <span className="text-[10px] text-muted-foreground">Invite:</span>
+                                {emails.map((email) => (
+                                  <button
+                                    key={email}
+                                    type="button"
+                                    onClick={() => setInviteEmailMap(prev => ({ ...prev, [id]: email }))}
+                                    className={`text-[10px] px-1.5 py-0.5 rounded-full transition-colors ${selectedEmail === email ? "bg-primary text-primary-foreground" : "bg-surface-container-low text-muted-foreground hover:text-foreground"}`}
+                                  >
+                                    {email}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         );
                       })}
                     </div>
                   )}
-                  {/* Search input */}
                   <div className="relative">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                    <input
-                      type="text"
-                      value={contactSearch}
-                      onChange={(e) => setContactSearch(e.target.value)}
-                      className={`${inputClasses} !pl-10`}
-                      placeholder="Search contacts to add…"
-                    />
+                    <input type="text" value={contactSearch} onChange={(e) => setContactSearch(e.target.value)} className={`${inputClasses} !pl-10`} placeholder="Search contacts to add…" />
                   </div>
-                  {/* Dropdown results */}
                   {contactSearch.trim() && (
                     <div className="mt-1 max-h-40 overflow-y-auto rounded-[12px] border border-outline-variant bg-surface-container-high">
-                      {allContacts
-                        .filter((c) => !selectedContactIds.includes(c.id) && c.name.toLowerCase().includes(contactSearch.toLowerCase()))
-                        .slice(0, 8)
-                        .map((c) => (
-                          <button
-                            key={c.id}
-                            type="button"
-                            onClick={() => { setSelectedContactIds([...selectedContactIds, c.id]); setContactSearch(""); }}
-                            className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-surface-container cursor-pointer transition-colors"
-                          >
-                            <div className="w-7 h-7 rounded-full bg-secondary-container flex items-center justify-center shrink-0 text-on-secondary-container text-[11px] font-medium">
-                              {c.name.charAt(0).toUpperCase()}
-                            </div>
-                            <div className="min-w-0">
+                      {allContacts.filter((c) => !selectedContactIds.includes(c.id) && c.name.toLowerCase().includes(contactSearch.toLowerCase())).slice(0, 8).map((c) => {
+                        const hasEmail = (contactEmailsMap[c.id] || []).length > 0 || !!c.email;
+                        return (
+                          <button key={c.id} type="button" onClick={() => { setSelectedContactIds([...selectedContactIds, c.id]); setContactSearch(""); }} className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-surface-container cursor-pointer transition-colors">
+                            <div className="w-7 h-7 rounded-full bg-secondary-container flex items-center justify-center shrink-0 text-on-secondary-container text-[11px] font-medium">{c.name.charAt(0).toUpperCase()}</div>
+                            <div className="min-w-0 flex-1">
                               <p className="text-sm text-foreground truncate">{c.name}</p>
+                              {c.email ? <p className="text-[11px] text-muted-foreground truncate">{c.email}</p> : <p className="text-[11px] text-amber-600">No email saved</p>}
                             </div>
+                            {!hasEmail && <span className="text-[10px] text-amber-600 shrink-0">No email</span>}
                           </button>
-                        ))}
+                        );
+                      })}
                       {allContacts.filter((c) => !selectedContactIds.includes(c.id) && c.name.toLowerCase().includes(contactSearch.toLowerCase())).length === 0 && (
                         <p className="px-4 py-3 text-xs text-muted-foreground">No matching contacts</p>
                       )}
                     </div>
                   )}
                 </div>
+                )}
 
-                <div>
-                  <label className={labelClasses}>Notes</label>
-                  <textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} className={`${inputClasses} !h-auto py-3`} rows={6} placeholder="Key takeaways, action items…" />
-                </div>
-                <div>
-                  <label className={labelClasses}>Transcript</label>
-                  <textarea value={formData.transcript} onChange={(e) => setFormData({ ...formData, transcript: e.target.value })} className={`${inputClasses} !h-auto py-3`} rows={12} placeholder="Paste your full meeting transcript here…" />
-                </div>
+                {/* Notes / transcript — shown once date is chosen */}
+                {formData.meeting_date && (
+                  isFutureMeeting ? (
+                    <div>
+                      <label className={labelClasses}>Private reminder notes</label>
+                      <textarea
+                        value={formData.privateNotes}
+                        onChange={(e) => setFormData({ ...formData, privateNotes: e.target.value })}
+                        className={`${inputClasses} !h-auto py-3`}
+                        rows={5}
+                        placeholder="Things to remember, topics to discuss, questions to ask… (private, not shared)"
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <div>
+                        <label className={labelClasses}>Notes</label>
+                        <textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} className={`${inputClasses} !h-auto py-3`} rows={5} placeholder="Key takeaways, action items…" />
+                      </div>
+                      <div>
+                        <label className={labelClasses}>Transcript</label>
+                        <textarea value={formData.transcript} onChange={(e) => setFormData({ ...formData, transcript: e.target.value })} className={`${inputClasses} !h-auto py-3`} rows={10} placeholder="Paste your full meeting transcript here…" />
+                      </div>
+                    </>
+                  )
+                )}
 
-                {/* Action items section */}
-                <div className="pt-2 border-t border-outline-variant">
+                {/* Action items section — shown once date is chosen */}
+                {formData.meeting_date && <div className="pt-2 border-t border-outline-variant">
                   <label className={labelClasses}>
                     <span className="flex items-center gap-1.5"><CheckSquare className="h-3.5 w-3.5" /> Action items</span>
                   </label>
@@ -621,16 +686,15 @@ export default function MeetingsPage() {
                   )}
 
                   <Button type="button" variant="tonal" size="sm" onClick={() => {
-                    // Auto-populate all meeting contacts
                     setActionContactIds([...selectedContactIds]);
                     setShowActionSub(true);
                   }}>
                     <Plus className="h-4 w-4" /> Add action item
                   </Button>
-                </div>
+                </div>}
 
-                {/* Google Calendar toggle — only for new meetings with time set */}
-                {calendarConnected && !editingMeeting && (
+                {/* Google Calendar toggle — only for new future meetings with date set */}
+                {calendarConnected && !editingMeeting && formData.meeting_date && (
                   <div className="pt-2 border-t border-outline-variant space-y-3">
                     <div className="flex items-center justify-between">
                       <label className="text-sm font-medium text-foreground flex items-center gap-2">
@@ -651,9 +715,19 @@ export default function MeetingsPage() {
                     </div>
                     {addToCalendar && (
                       <>
+                        <div>
+                          <label className={labelClasses}>Calendar invite description</label>
+                          <textarea
+                            value={formData.calendarDescription}
+                            onChange={(e) => setFormData({ ...formData, calendarDescription: e.target.value })}
+                            className={`${inputClasses} !h-auto py-3`}
+                            rows={3}
+                            placeholder="Agenda, dial-in details, or any notes to include in the Google Calendar invite…"
+                          />
+                        </div>
                         <div className="flex items-center justify-between">
                           <label className="text-sm text-muted-foreground flex items-center gap-2">
-                            <span className="text-lg">📹</span> Include Google Meet link
+                            <Video className="h-4 w-4" /> Include Google Meet link
                           </label>
                           <button
                             type="button"
@@ -773,10 +847,40 @@ export default function MeetingsPage() {
         {/* Unified timeline: meetings + interactions sorted by date desc */}
         <div className="space-y-3">
           {(() => {
+            const q = searchQuery.toLowerCase().trim();
+            const matchesMeeting = (m: Meeting) => {
+              if (!q) return true;
+              const title = (m as any).title || "";
+              const names = m.meeting_contacts.map(mc => mc.contacts?.name || "").join(" ");
+              return (
+                title.toLowerCase().includes(q) ||
+                m.meeting_type.toLowerCase().includes(q) ||
+                (m.notes || "").toLowerCase().includes(q) ||
+                ((m as any).private_notes || "").toLowerCase().includes(q) ||
+                names.toLowerCase().includes(q)
+              );
+            };
+            const matchesInteraction = (i: InteractionWithContact) => {
+              if (!q) return true;
+              return (
+                (i.interaction_type || "").toLowerCase().includes(q) ||
+                (i.summary || "").toLowerCase().includes(q) ||
+                (i.contacts?.name || "").toLowerCase().includes(q)
+              );
+            };
+
             const timeline: { kind: "meeting" | "interaction"; date: string; data: Meeting | InteractionWithContact }[] = [
-              ...meetings.map((m) => ({ kind: "meeting" as const, date: m.meeting_date, data: m })),
-              ...allInteractions.map((i) => ({ kind: "interaction" as const, date: i.interaction_date, data: i })),
+              ...meetings.filter(matchesMeeting).map((m) => ({ kind: "meeting" as const, date: m.meeting_date, data: m })),
+              ...allInteractions.filter(matchesInteraction).map((i) => ({ kind: "interaction" as const, date: i.interaction_date, data: i })),
             ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+            if (timeline.length === 0 && q) {
+              return (
+                <div className="text-center py-16 text-muted-foreground text-sm">
+                  No results for &ldquo;{searchQuery}&rdquo;
+                </div>
+              );
+            }
 
             return timeline.map((item) => item.kind === "interaction" ? (
               <div key={`i-${(item.data as InteractionWithContact).id}`} className="rounded-[16px] border border-outline-variant/60 bg-white hover:border-outline-variant hover:shadow-sm transition-all duration-200">
@@ -829,7 +933,7 @@ export default function MeetingsPage() {
                       <Calendar className="h-5 w-5 text-on-secondary-container" />
                     </div>
                     <div className="min-w-0">
-                      <h3 className="text-base font-medium text-foreground capitalize">{meeting.meeting_type}</h3>
+                      <h3 className="text-base font-medium text-foreground">{(meeting as any).title || <span className="capitalize">{meeting.meeting_type}</span>}</h3>
                       <p className="text-sm text-muted-foreground">
                         {new Date(meeting.meeting_date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
                         {" · "}
@@ -865,6 +969,13 @@ export default function MeetingsPage() {
                         On calendar
                       </span>
                     )}
+                  </div>
+                )}
+
+                {(meeting as any).private_notes && (
+                  <div className="mt-4 ml-[52px]">
+                    <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Private reminders</h4>
+                    <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{(meeting as any).private_notes}</p>
                   </div>
                 )}
 

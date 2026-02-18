@@ -4,13 +4,15 @@ import { useState, useEffect, useCallback } from "react";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Button } from "@/components/ui/button";
 import {
-  X, Plus, Clock, Check, AlertCircle, ChevronRight, Pencil,
+  X, Plus, Clock, Check, AlertCircle, ChevronRight, Pencil, Wand2,
 } from "lucide-react";
 import type { EmailFollowUp } from "@/lib/types";
 
 export type FollowUpDraft = {
   /** For follow-up #1: days after original email. For #2+: days after previous follow-up. */
   delayDays: number;
+  /** Time of day to send, in HH:MM 24h format (e.g. "09:00") */
+  sendTime: string;
   subject: string;
   bodyHtml: string;
 };
@@ -79,6 +81,7 @@ export function FollowUpModal({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const [generatingAi, setGeneratingAi] = useState(false);
 
   const isEditing = !!existingFollowUp;
 
@@ -109,6 +112,7 @@ export function FollowUpModal({
       setDrafts(
         msgs.map((m, i) => ({
           delayDays: relativeDelays[i],
+          sendTime: "09:00",
           subject: m.subject,
           bodyHtml: m.body_html,
         }))
@@ -120,6 +124,7 @@ export function FollowUpModal({
       setDrafts([
         {
           delayDays: defaultDays,
+          sendTime: "09:00",
           subject: `Re: ${reSubj}`,
           bodyHtml: "",
         },
@@ -149,6 +154,7 @@ export function FollowUpModal({
       ...prev,
       {
         delayDays: 3,
+        sendTime: "09:00",
         subject: `Re: ${reSubj}`,
         bodyHtml: "",
       },
@@ -211,6 +217,7 @@ export function FollowUpModal({
           body: JSON.stringify({
             messages: drafts.map((d, i) => ({
               sendAfterDays: absDays[i],
+              sendTime: d.sendTime,
               subject: d.subject,
               bodyHtml: d.bodyHtml,
             })),
@@ -233,6 +240,7 @@ export function FollowUpModal({
             scheduledEmailId: scheduledEmailId || undefined,
             messages: drafts.map((d, i) => ({
               sendAfterDays: absDays[i],
+              sendTime: d.sendTime,
               subject: d.subject,
               bodyHtml: d.bodyHtml,
             })),
@@ -368,12 +376,12 @@ export function FollowUpModal({
 
             {/* Active tab content */}
             <div className="flex-1 overflow-y-auto min-h-0 px-6 pt-2 pb-3 space-y-3">
-              {/* Days selector */}
+              {/* Days + time selector */}
               <div>
                 <label className="text-xs font-medium text-foreground block mb-1.5">
                   Send after
                 </label>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <input
                     type="number"
                     min={getMinDelay(activeTab)}
@@ -387,10 +395,18 @@ export function FollowUpModal({
                   <span className="text-sm text-muted-foreground">
                     {activeTab === 0 ? "days after original email" : "days after previous follow-up"}
                   </span>
+                  <span className="text-sm text-muted-foreground">at</span>
+                  <input
+                    type="time"
+                    value={currentDraft.sendTime}
+                    onChange={(e) => updateDraft(activeTab, { sendTime: e.target.value })}
+                    className="h-9 px-2 rounded-lg border border-outline bg-surface-container-low text-sm text-foreground focus:outline-none focus:border-primary"
+                  />
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
                   <ChevronRight className="h-3 w-3" />
                   Will send on {scheduledDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+                  {" "}at {currentDraft.sendTime}
                   {" "}(day {absoluteDays[activeTab]} from original)
                   {currentDraft.delayDays < getMinDelay(activeTab) && (
                     <span className="text-destructive ml-1">
@@ -417,9 +433,46 @@ export function FollowUpModal({
 
               {/* Body */}
               <div>
-                <label className="text-xs font-medium text-foreground block mb-1.5">
-                  Message
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-medium text-foreground">
+                    Message
+                  </label>
+                  <button
+                    type="button"
+                    disabled={generatingAi}
+                    onClick={async () => {
+                      setGeneratingAi(true);
+                      try {
+                        const res = await fetch("/api/gmail/ai-write", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            recipientEmail,
+                            recipientName: contactName || undefined,
+                            template: "follow_up",
+                            customPrompt: `Write follow-up #${activeTab + 1} for an email with subject "${originalSubject}". This is a professional networking follow-up. Keep it brief (2-3 sentences), friendly, and add value. Do not start with "I hope this email finds you well".`,
+                          }),
+                        });
+                        const data = await res.json();
+                        if (data.body) {
+                          updateDraft(activeTab, { bodyHtml: data.body });
+                          if (data.subject && !currentDraft.bodyHtml.trim()) {
+                            updateDraft(activeTab, { subject: data.subject });
+                          }
+                        }
+                      } catch {}
+                      setGeneratingAi(false);
+                    }}
+                    className="inline-flex items-center gap-1 text-[11px] text-primary hover:text-primary/80 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {generatingAi ? (
+                      <div className="animate-spin rounded-full h-3 w-3 border border-primary border-t-transparent" />
+                    ) : (
+                      <Wand2 className="h-3 w-3" />
+                    )}
+                    {generatingAi ? "Generating…" : "Write with AI"}
+                  </button>
+                </div>
                 <RichTextEditor
                   key={`fu-editor-${activeTab}-${isEditing ? "edit" : "new"}`}
                   content={currentDraft.bodyHtml}

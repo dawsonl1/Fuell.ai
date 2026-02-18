@@ -1,6 +1,7 @@
 "use client";
 
 import { useEditor, EditorContent } from "@tiptap/react";
+import { useEffect, useRef } from "react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -23,6 +24,8 @@ interface RichTextEditorProps {
 }
 
 export function RichTextEditor({ content = "", placeholder = "Write your message…", onChange, className = "" }: RichTextEditorProps) {
+  const lastEmittedHtml = useRef(content);
+
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
@@ -46,9 +49,20 @@ export function RichTextEditor({ content = "", placeholder = "Write your message
       },
     },
     onUpdate: ({ editor: e }) => {
-      onChange?.(e.getHTML());
+      const html = e.getHTML();
+      lastEmittedHtml.current = html;
+      onChange?.(html);
     },
   });
+
+  // Sync external content changes (e.g. "Insert availability") into TipTap
+  useEffect(() => {
+    if (!editor) return;
+    if (content !== lastEmittedHtml.current) {
+      lastEmittedHtml.current = content; // Set before setContent so onUpdate echo doesn't retrigger
+      editor.commands.setContent(content);
+    }
+  }, [content, editor]);
 
   if (!editor) return null;
 
