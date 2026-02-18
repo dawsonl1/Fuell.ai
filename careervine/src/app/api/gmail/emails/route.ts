@@ -57,12 +57,14 @@ export async function GET(request: NextRequest) {
       ).catch((err) => console.error("Background sync error:", err));
     }
 
-    // Return cached emails
+    // Return cached emails (exclude trashed/hidden)
     const { data: messages, error: queryError } = await serviceClient
       .from("email_messages")
       .select("*")
       .eq("user_id", user.id)
       .eq("matched_contact_id", parseInt(contactId))
+      .eq("is_trashed", false)
+      .eq("is_hidden", false)
       .order("date", { ascending: false });
 
     if (queryError) throw queryError;

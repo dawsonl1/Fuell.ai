@@ -28,13 +28,32 @@ export async function GET() {
 
     const service = createSupabaseServiceClient();
 
-    const [emailsRes, scheduledRes, followUpsRes, contactsRes] = await Promise.all([
+    const [emailsRes, trashedRes, hiddenRes, scheduledRes, followUpsRes, contactsRes] = await Promise.all([
       service
         .from("email_messages")
         .select("*")
         .eq("user_id", user.id)
+        .eq("is_trashed", false)
+        .eq("is_hidden", false)
         .order("date", { ascending: false })
         .limit(500),
+
+      service
+        .from("email_messages")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("is_trashed", true)
+        .order("date", { ascending: false })
+        .limit(100),
+
+      service
+        .from("email_messages")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("is_hidden", true)
+        .eq("is_trashed", false)
+        .order("date", { ascending: false })
+        .limit(100),
 
       service
         .from("scheduled_emails")
@@ -58,6 +77,8 @@ export async function GET() {
     ]);
 
     if (emailsRes.error) throw emailsRes.error;
+    if (trashedRes.error) throw trashedRes.error;
+    if (hiddenRes.error) throw hiddenRes.error;
     if (scheduledRes.error) throw scheduledRes.error;
     if (followUpsRes.error) throw followUpsRes.error;
 
@@ -69,6 +90,8 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       emails: emailsRes.data || [],
+      trashedEmails: trashedRes.data || [],
+      hiddenEmails: hiddenRes.data || [],
       scheduledEmails: scheduledRes.data || [],
       followUps: followUpsRes.data || [],
       contactMap,

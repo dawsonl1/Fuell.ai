@@ -284,6 +284,8 @@ export type Database = {
           date: string | null;
           label_ids: string[] | null;
           is_read: boolean;
+          is_trashed: boolean;
+          is_hidden: boolean;
           direction: string | null;
           matched_contact_id: number | null;
           created_at: string | null;

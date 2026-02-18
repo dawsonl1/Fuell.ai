@@ -107,11 +107,11 @@ export function ContactEmailsTab({
     setExpandedEmailContent(null);
     setLoadingEmailContent(true);
 
-    // Mark as read in Gmail + local DB
     const msg = emails.find((e) => e.gmail_message_id === gmailMessageId);
     if (msg && !msg.is_read) {
       fetch(`/api/gmail/emails/${gmailMessageId}/read`, { method: "POST" }).catch(() => {});
-      window.dispatchEvent(new CustomEvent("careervine:unread-changed"));
+      const delta = msg.direction === "inbound" ? -1 : 0;
+      window.dispatchEvent(new CustomEvent("careervine:unread-changed", { detail: { delta } }));
     }
 
     try {

@@ -10,7 +10,7 @@ import { google } from "googleapis";
 import { createSupabaseServiceClient } from "@/lib/supabase/service-client";
 
 const SCOPES = [
-  "https://www.googleapis.com/auth/gmail.readonly",
+  "https://www.googleapis.com/auth/gmail.modify",
   "https://www.googleapis.com/auth/gmail.send",
 ];
 
@@ -372,6 +372,93 @@ export async function markMessageAsRead(userId: string, gmailMessageId: string) 
   await supabase
     .from("email_messages")
     .update({ is_read: true })
+    .eq("user_id", userId)
+    .eq("gmail_message_id", gmailMessageId);
+}
+
+/**
+ * List all Gmail labels for a user (used for "Move to folder" UI).
+ * Filters out internal/system labels that aren't useful to display.
+ */
+export async function getGmailLabels(userId: string) {
+  const gmail = await getGmailClient(userId);
+  const res = await gmail.users.labels.list({ userId: "me" });
+  const labels = (res.data.labels || []).map((l) => ({
+    id: l.id!,
+    name: l.name!,
+    type: l.type || "user",
+  }));
+
+  const visibleSystem = new Set([
+    "IMPORTANT",
+    "STARRED",
+    "CATEGORY_PERSONAL",
+    "CATEGORY_SOCIAL",
+    "CATEGORY_PROMOTIONS",
+    "CATEGORY_UPDATES",
+    "CATEGORY_FORUMS",
+  ]);
+
+  return labels.filter(
+    (l) => l.type === "user" || visibleSystem.has(l.id)
+  );
+}
+
+/**
+ * Move a message to a Gmail label/folder by adding the target label
+ * and removing INBOX. Also deletes the local cache row so it
+ * disappears from the webapp.
+ */
+export async function moveMessageToLabel(
+  userId: string,
+  gmailMessageId: string,
+  labelId: string
+) {
+  const gmail = await getGmailClient(userId);
+
+  await gmail.users.messages.modify({
+    userId: "me",
+    id: gmailMessageId,
+    requestBody: {
+      addLabelIds: [labelId],
+      removeLabelIds: ["INBOX"],
+    },
+  });
+
+  const supabase = createSupabaseServiceClient();
+  await supabase
+    .from("email_messages")
+    .delete()
+    .eq("user_id", userId)
+    .eq("gmail_message_id", gmailMessageId);
+}
+
+/**
+ * Trash a message in Gmail and mark it as trashed in the local cache.
+ */
+export async function trashMessage(userId: string, gmailMessageId: string) {
+  const gmail = await getGmailClient(userId);
+  await gmail.users.messages.trash({ userId: "me", id: gmailMessageId });
+
+  const supabase = createSupabaseServiceClient();
+  await supabase
+    .from("email_messages")
+    .update({ is_trashed: true })
+    .eq("user_id", userId)
+    .eq("gmail_message_id", gmailMessageId);
+}
+
+/**
+ * Untrash (restore) a message in Gmail and the local cache.
+ */
+export async function untrashMessage(userId: string, gmailMessageId: string) {
+  const gmail = await getGmailClient(userId);
+  await gmail.users.messages.untrash({ userId: "me", id: gmailMessageId });
+
+  const supabase = createSupabaseServiceClient();
+  await supabase
+    .from("email_messages")
+    .update({ is_trashed: false })
     .eq("user_id", userId)
     .eq("gmail_message_id", gmailMessageId);
 }

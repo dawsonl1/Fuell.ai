@@ -83,14 +83,21 @@ export function ComposeEmailProvider({ children }: { children: React.ReactNode }
     fetchUnreadCount();
   }, [fetchUnreadCount]);
 
-  // Re-fetch when emails are read or sent
+  // Update badge when emails are read or sent
   useEffect(() => {
-    const handler = () => setTimeout(fetchUnreadCount, 300);
-    window.addEventListener("careervine:unread-changed", handler);
-    window.addEventListener("careervine:email-sent", handler);
+    const handleUnread = (e: Event) => {
+      const delta = (e as CustomEvent).detail?.delta;
+      if (typeof delta === "number") {
+        setUnreadCount((prev) => Math.max(0, prev + delta));
+      }
+      setTimeout(fetchUnreadCount, 600);
+    };
+    const handleSent = () => setTimeout(fetchUnreadCount, 600);
+    window.addEventListener("careervine:unread-changed", handleUnread);
+    window.addEventListener("careervine:email-sent", handleSent);
     return () => {
-      window.removeEventListener("careervine:unread-changed", handler);
-      window.removeEventListener("careervine:email-sent", handler);
+      window.removeEventListener("careervine:unread-changed", handleUnread);
+      window.removeEventListener("careervine:email-sent", handleSent);
     };
   }, [fetchUnreadCount]);
 
