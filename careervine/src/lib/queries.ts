@@ -197,14 +197,17 @@ export async function getMeetingsForContact(contactId: number) {
         id,
         meeting_date,
         meeting_type,
+        title,
         notes,
+        private_notes,
+        calendar_description,
         transcript
       )
     `)
     .eq("contact_id", contactId);
 
   if (error) throw error;
-  type MeetingRow = { id: number; meeting_date: string; meeting_type: string; notes: string | null; transcript: string | null };
+  type MeetingRow = { id: number; meeting_date: string; meeting_type: string; title: string | null; notes: string | null; private_notes: string | null; calendar_description: string | null; transcript: string | null };
   // Flatten: Supabase may return meetings as object or array depending on relation
   const meetings: MeetingRow[] = [];
   for (const row of data || []) {
