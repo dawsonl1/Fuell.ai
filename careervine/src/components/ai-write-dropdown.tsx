@@ -191,7 +191,7 @@ export function AiWriteDropdown({ recipientEmail, recipientName, existingSubject
       </button>
 
       {open && !generating && (
-        <div className="absolute left-0 bottom-10 z-50 w-80 bg-surface-container-high rounded-xl shadow-lg border border-outline-variant overflow-hidden">
+        <div className="absolute left-0 top-10 z-50 w-80 bg-surface-container-high rounded-xl shadow-lg border border-outline-variant overflow-hidden">
           {/* ── Meeting picker view ── */}
           {showMeetingPicker ? (
             <div>

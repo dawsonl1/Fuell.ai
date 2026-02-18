@@ -350,21 +350,23 @@ export function ComposeEmailModal() {
               />
             </div>
 
-            {/* AI Write + Body */}
-            <div className="flex-1 overflow-y-auto min-h-0 px-4 pt-3">
-              <div className="flex items-center justify-between mb-2">
-                <AiWriteDropdown
-                  recipientEmail={to}
-                  recipientName={prefillName}
-                  existingSubject={subject}
-                  onGenerated={(body, generatedSubject) => {
-                    setBodyHtml(body);
-                    if (generatedSubject && !subject.trim()) {
-                      setSubject(generatedSubject);
-                    }
-                  }}
-                />
-              </div>
+            {/* AI Write button — outside the overflow container so dropdown isn't clipped */}
+            <div className="px-4 pt-2 relative z-10 overflow-visible">
+              <AiWriteDropdown
+                recipientEmail={to}
+                recipientName={prefillName}
+                existingSubject={subject}
+                onGenerated={(body, generatedSubject) => {
+                  setBodyHtml(body);
+                  if (generatedSubject && !subject.trim()) {
+                    setSubject(generatedSubject);
+                  }
+                }}
+              />
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto min-h-0 px-4 pt-2">
               <RichTextEditor
                 content={bodyHtml}
                 onChange={setBodyHtml}
