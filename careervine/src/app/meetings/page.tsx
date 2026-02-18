@@ -78,13 +78,31 @@ export default function MeetingsPage() {
   const [interactionForm, setInteractionForm] = useState({ interaction_date: "", interaction_type: "", summary: "" });
   const [interactionSaving, setInteractionSaving] = useState(false);
 
+  // Calendar integration
+  const [calendarConnected, setCalendarConnected] = useState(false);
+  const [addToCalendar, setAddToCalendar] = useState(false);
+  const [includeMeetLink, setIncludeMeetLink] = useState(true);
+  const [meetingDuration, setMeetingDuration] = useState(60);
+
   useEffect(() => {
     if (user) {
       loadMeetings();
       loadContacts();
       loadInteractions();
+      checkCalendarConnection();
     }
   }, [user]);
+
+  const checkCalendarConnection = async () => {
+    try {
+      const res = await fetch("/api/gmail/connection");
+      const data = await res.json();
+      if (data.connection?.calendar_scopes_granted) {
+        setCalendarConnected(true);
+        setAddToCalendar(true);
+      }
+    } catch {}
+  };
 
   const loadContacts = async () => {
     if (!user) return;
@@ -209,6 +227,43 @@ export default function MeetingsPage() {
           await addContactsToMeeting(created.id, selectedContactIds);
         }
         meetingId = created.id;
+
+        // Create Google Calendar event for future meetings
+        const meetingDateTime = new Date(dateTime);
+        const isFuture = meetingDateTime > new Date();
+        if (addToCalendar && calendarConnected && isFuture && formData.meeting_time) {
+          try {
+            const attendeeEmails = selectedContactIds
+              .map(id => allContacts.find(c => c.id === id))
+              .filter(Boolean)
+              .map(c => {
+                const contact = c as SimpleContact & { email?: string };
+                return contact.email || null;
+              })
+              .filter(Boolean) as string[];
+
+            const startTime = new Date(dateTime).toISOString();
+            const endTime = new Date(new Date(dateTime).getTime() + meetingDuration * 60000).toISOString();
+
+            await fetch("/api/calendar/create-event", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                summary: formData.meeting_type
+                  ? `${formData.meeting_type.charAt(0).toUpperCase() + formData.meeting_type.slice(1).replace("-", " ")} with ${selectedContactIds.map(id => allContacts.find(c => c.id === id)?.name).filter(Boolean).join(", ") || "Contact"}`
+                  : "Meeting",
+                description: formData.notes || undefined,
+                startTime,
+                endTime,
+                attendeeEmails,
+                conferenceType: includeMeetLink ? "meet" : "none",
+                meetingId: created.id,
+              }),
+            });
+          } catch (err) {
+            console.error("Failed to create calendar event:", err);
+          }
+        }
       }
       // Create any pending action items, linking to the meeting
       for (const action of pendingActions) {
@@ -264,6 +319,9 @@ export default function MeetingsPage() {
     setActionTitle("");
     setActionContactIds([]);
     setActionDueDate("");
+    setAddToCalendar(calendarConnected);
+    setIncludeMeetLink(true);
+    setMeetingDuration(60);
   };
 
   const addPendingAction = () => {
@@ -521,6 +579,64 @@ export default function MeetingsPage() {
                     <Plus className="h-4 w-4" /> Add action item
                   </Button>
                 </div>
+
+                {/* Google Calendar toggle — only for new meetings with time set */}
+                {calendarConnected && !editingMeeting && (
+                  <div className="pt-2 border-t border-outline-variant space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                        Add to Google Calendar
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setAddToCalendar(!addToCalendar)}
+                        className={`relative w-10 h-6 rounded-full transition-colors ${
+                          addToCalendar ? "bg-primary" : "bg-outline-variant"
+                        }`}
+                      >
+                        <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${
+                          addToCalendar ? "left-5" : "left-1"
+                        }`} />
+                      </button>
+                    </div>
+                    {addToCalendar && (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <label className="text-sm text-muted-foreground flex items-center gap-2">
+                            <span className="text-lg">📹</span> Include Google Meet link
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setIncludeMeetLink(!includeMeetLink)}
+                            className={`relative w-10 h-6 rounded-full transition-colors ${
+                              includeMeetLink ? "bg-primary" : "bg-outline-variant"
+                            }`}
+                          >
+                            <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${
+                              includeMeetLink ? "left-5" : "left-1"
+                            }`} />
+                          </button>
+                        </div>
+                        <div>
+                          <label className={labelClasses}>Meeting duration</label>
+                          <select
+                            value={meetingDuration}
+                            onChange={(e) => setMeetingDuration(Number(e.target.value))}
+                            className={inputClasses}
+                          >
+                            <option value={15}>15 minutes</option>
+                            <option value={30}>30 minutes</option>
+                            <option value={45}>45 minutes</option>
+                            <option value={60}>1 hour</option>
+                            <option value={90}>1.5 hours</option>
+                            <option value={120}>2 hours</option>
+                          </select>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
 
                 <div className="flex justify-end gap-2 pt-2">
                   <Button type="button" variant="text" onClick={closeForm}>Cancel</Button>

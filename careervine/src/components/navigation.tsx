@@ -28,6 +28,7 @@ export default function Navigation() {
     { href: "/contacts", label: "Contacts", icon: Users },
     ...(gmailConnected ? [{ href: "/inbox", label: "Inbox", icon: Inbox }] : []),
     { href: "/meetings", label: "Activity", icon: Calendar },
+    { href: "/calendar", label: "Calendar", icon: Calendar },
     { href: "/action-items", label: "Actions", icon: CheckSquare },
   ];
 

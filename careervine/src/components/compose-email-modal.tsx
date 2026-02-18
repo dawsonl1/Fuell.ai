@@ -6,6 +6,7 @@ import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Button } from "@/components/ui/button";
 import { X, ChevronDown, ChevronUp, Send, Check, Reply, Clock } from "lucide-react";
 import { AiWriteDropdown } from "@/components/ai-write-dropdown";
+import { AvailabilityPicker } from "@/components/availability-picker";
 
 const inputClasses =
   "w-full h-10 px-3 bg-transparent text-foreground text-sm placeholder:text-muted-foreground focus:outline-none";
@@ -441,8 +442,8 @@ export function ComposeEmailModal() {
               />
             </div>
 
-            {/* AI Write button — outside the overflow container so dropdown isn't clipped */}
-            <div className="px-4 pt-2 relative z-10 overflow-visible">
+            {/* Toolbar — AI Write + Insert Availability */}
+            <div className="px-4 pt-2 relative z-10 overflow-visible flex items-center gap-2 flex-wrap">
               <AiWriteDropdown
                 recipientEmail={to}
                 recipientName={selectedContactName || prefillName}
@@ -452,6 +453,14 @@ export function ComposeEmailModal() {
                   if (generatedSubject && !subject.trim()) {
                     setSubject(generatedSubject);
                   }
+                }}
+              />
+              <AvailabilityPicker
+                onInsert={(text) => {
+                  setBodyHtml((prev) => {
+                    const separator = prev.trim() ? "<br><br>" : "";
+                    return prev + separator + text.split("\n").join("<br>");
+                  });
                 }}
               />
             </div>

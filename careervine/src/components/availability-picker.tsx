@@ -1,0 +1,194 @@
+"use client";
+
+import { useState } from "react";
+import { Calendar, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+interface AvailabilityDay {
+  date: string;
+  label: string;
+  slots: string[];
+}
+
+interface AvailabilityPickerProps {
+  onInsert: (text: string) => void;
+}
+
+const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+export function AvailabilityPicker({ onInsert }: AvailabilityPickerProps) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const [duration, setDuration] = useState(30);
+  const [daysAhead, setDaysAhead] = useState(7);
+  const [daysOfWeek, setDaysOfWeek] = useState([1, 2, 3, 4, 5]); // Mon-Fri (1=Mon, 7=Sun)
+  const [windowStart, setWindowStart] = useState("09:00");
+  const [windowEnd, setWindowEnd] = useState("18:00");
+
+  const toggleDay = (day: number) => {
+    setDaysOfWeek((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day].sort()
+    );
+  };
+
+  const handleInsert = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(start);
+      end.setDate(end.getDate() + daysAhead);
+
+      const params = new URLSearchParams({
+        start: start.toISOString(),
+        end: end.toISOString(),
+        daysOfWeek: daysOfWeek.join(","),
+        windowStart,
+        windowEnd,
+        duration: String(duration),
+      });
+
+      const res = await fetch(`/api/calendar/availability?${params}`);
+      const data = await res.json();
+
+      if (data.notConnected) {
+        setError("Connect Google Calendar in Settings to use this feature.");
+        return;
+      }
+      if (data.neverSynced) {
+        setError("Sync your calendar first from the Calendar page.");
+        return;
+      }
+      if (!res.ok) throw new Error(data.error || "Failed to fetch availability");
+
+      const days: AvailabilityDay[] = data.days || [];
+      if (days.length === 0) {
+        setError("No availability found for the selected range.");
+        return;
+      }
+
+      const text = days
+        .map((d) => `${d.label}: ${d.slots.join(", ")}`)
+        .join("\n");
+
+      onInsert(text);
+      setOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load availability");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-surface-container-low transition-colors border border-outline-variant"
+      >
+        <Calendar className="h-3.5 w-3.5" />
+        Insert availability
+        {open ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full mt-2 z-50 w-80 bg-surface-container-high rounded-2xl shadow-lg border border-outline-variant p-4 space-y-4">
+          <p className="text-sm font-medium text-foreground">Insert availability</p>
+
+          {/* Days of week */}
+          <div>
+            <label className="text-xs text-muted-foreground mb-2 block">Days</label>
+            <div className="flex gap-1.5 flex-wrap">
+              {DAY_LABELS.map((label, i) => {
+                const dayNum = i + 1;
+                return (
+                  <button
+                    key={dayNum}
+                    type="button"
+                    onClick={() => toggleDay(dayNum)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                      daysOfWeek.includes(dayNum)
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-surface-container-low text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Time window */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">From</label>
+              <input
+                type="time"
+                value={windowStart}
+                onChange={(e) => setWindowStart(e.target.value)}
+                className="w-full h-8 px-2 rounded-lg border border-outline bg-surface-container-low text-sm text-foreground focus:outline-none focus:border-primary"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">To</label>
+              <input
+                type="time"
+                value={windowEnd}
+                onChange={(e) => setWindowEnd(e.target.value)}
+                className="w-full h-8 px-2 rounded-lg border border-outline bg-surface-container-low text-sm text-foreground focus:outline-none focus:border-primary"
+              />
+            </div>
+          </div>
+
+          {/* Duration & range */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Duration (min)</label>
+              <select
+                value={duration}
+                onChange={(e) => setDuration(Number(e.target.value))}
+                className="w-full h-8 px-2 rounded-lg border border-outline bg-surface-container-low text-sm text-foreground focus:outline-none focus:border-primary"
+              >
+                <option value={15}>15 min</option>
+                <option value={30}>30 min</option>
+                <option value={45}>45 min</option>
+                <option value={60}>1 hour</option>
+                <option value={90}>1.5 hours</option>
+                <option value={120}>2 hours</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Next</label>
+              <select
+                value={daysAhead}
+                onChange={(e) => setDaysAhead(Number(e.target.value))}
+                className="w-full h-8 px-2 rounded-lg border border-outline bg-surface-container-low text-sm text-foreground focus:outline-none focus:border-primary"
+              >
+                <option value={3}>3 days</option>
+                <option value={5}>5 days</option>
+                <option value={7}>7 days</option>
+                <option value={14}>14 days</option>
+              </select>
+            </div>
+          </div>
+
+          {error && (
+            <p className="text-xs text-destructive">{error}</p>
+          )}
+
+          <div className="flex justify-end">
+            <Button size="sm" onClick={handleInsert} loading={loading}>
+              {loading ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null}
+              Insert
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
