@@ -48,6 +48,14 @@ export function ComposeEmailModal() {
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sentOrScheduledRef = useRef(false);
 
+  // Contact autocomplete
+  const [contactQuery, setContactQuery] = useState("");
+  const [contactSuggestions, setContactSuggestions] = useState<Array<{ id: number; name: string; email: string }>>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedContactName, setSelectedContactName] = useState("");
+  const contactSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+
   // Minimum datetime is 5 minutes from now
   const minDatetime = toLocalDatetimeString(new Date(Date.now() + 5 * 60_000));
 
@@ -107,6 +115,10 @@ export function ComposeEmailModal() {
       setScheduleDatetime("");
       draftIdRef.current = null;
       sentOrScheduledRef.current = false;
+      setContactSuggestions([]);
+      setShowSuggestions(false);
+      setSelectedContactName(prefillName || "");
+      setContactQuery("");
       setTimeout(() => {
         if (prefillTo) {
           // Focus subject if To is pre-filled
@@ -116,6 +128,53 @@ export function ComposeEmailModal() {
       }, 100);
     }
   }, [isOpen, prefillTo, prefillName, prefillSubject]);
+
+  // Contact autocomplete: debounced search
+  const searchContacts = useCallback(async (query: string) => {
+    if (query.length < 1) { setContactSuggestions([]); setShowSuggestions(false); return; }
+    try {
+      const res = await fetch(`/api/contacts/search?q=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      setContactSuggestions(data.contacts || []);
+      setShowSuggestions((data.contacts || []).length > 0);
+    } catch {
+      setContactSuggestions([]);
+      setShowSuggestions(false);
+    }
+  }, []);
+
+  const handleToChange = (value: string) => {
+    setTo(value);
+    setSelectedContactName("");
+    // If it looks like an email already, don't search
+    if (value.includes("@")) {
+      setShowSuggestions(false);
+      return;
+    }
+    setContactQuery(value);
+    if (contactSearchTimer.current) clearTimeout(contactSearchTimer.current);
+    contactSearchTimer.current = setTimeout(() => searchContacts(value), 200);
+  };
+
+  const handleSelectContact = (contact: { id: number; name: string; email: string }) => {
+    setTo(contact.email);
+    setSelectedContactName(contact.name);
+    setShowSuggestions(false);
+    setContactSuggestions([]);
+    // Also set prefillName equivalent for AI write
+  };
+
+  // Close suggestions on outside click
+  useEffect(() => {
+    if (!showSuggestions) return;
+    const handler = (e: MouseEvent) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showSuggestions]);
 
   // Auto-save draft on content change (debounced 2s)
   useEffect(() => {
@@ -287,18 +346,50 @@ export function ComposeEmailModal() {
               <span className="text-sm text-muted-foreground px-3 py-2.5">{gmailAddress}</span>
             </div>
 
-            {/* To */}
-            <div className={fieldRowClasses}>
+            {/* To — with contact autocomplete */}
+            <div className={`${fieldRowClasses} relative`}>
               <label className="text-xs text-muted-foreground pl-4 w-12 shrink-0" htmlFor="compose-to">To</label>
-              <input
-                ref={toRef}
-                id="compose-to"
-                type="email"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                className={inputClasses}
-                placeholder="recipient@example.com"
-              />
+              <div className="flex-1 min-w-0 relative">
+                <input
+                  ref={toRef}
+                  id="compose-to"
+                  type="text"
+                  value={to}
+                  onChange={(e) => handleToChange(e.target.value)}
+                  onFocus={() => { if (contactSuggestions.length > 0 && !to.includes("@")) setShowSuggestions(true); }}
+                  className={inputClasses}
+                  placeholder="Name or email…"
+                  autoComplete="off"
+                />
+                {selectedContactName && to.includes("@") && (
+                  <span className="absolute right-0 top-1/2 -translate-y-1/2 text-[11px] text-primary font-medium pr-1">
+                    {selectedContactName}
+                  </span>
+                )}
+                {showSuggestions && contactSuggestions.length > 0 && (
+                  <div
+                    ref={suggestionsRef}
+                    className="absolute left-0 top-full z-50 w-full bg-surface-container-high rounded-b-xl shadow-lg border border-outline-variant border-t-0 overflow-hidden"
+                  >
+                    {contactSuggestions.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => handleSelectContact(c)}
+                        className="w-full text-left px-3 py-2 flex items-center gap-3 hover:bg-primary/[0.06] transition-colors cursor-pointer"
+                      >
+                        <div className="w-7 h-7 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container text-xs font-medium shrink-0">
+                          {c.name[0]?.toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{c.name}</p>
+                          <p className="text-[11px] text-muted-foreground truncate">{c.email}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={() => setShowCcBcc(!showCcBcc)}
@@ -354,7 +445,7 @@ export function ComposeEmailModal() {
             <div className="px-4 pt-2 relative z-10 overflow-visible">
               <AiWriteDropdown
                 recipientEmail={to}
-                recipientName={prefillName}
+                recipientName={selectedContactName || prefillName}
                 existingSubject={subject}
                 onGenerated={(body, generatedSubject) => {
                   setBodyHtml(body);
